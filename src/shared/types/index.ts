@@ -1,5 +1,4 @@
 export * from './ipc'
 export * from './module'
+export * from './project'
 export * from './terminal'
-export * from './ftp'
-export * from './services'
