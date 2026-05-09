@@ -5,16 +5,21 @@ import { useProjectStore } from '@/stores/project'
 
 interface CodeEditorProps {
   tab: EditorTab
+  revealLine?: number
 }
 
-export function CodeEditor({ tab }: CodeEditorProps) {
+export function CodeEditor({ tab, revealLine }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const { updateTabContent } = useProjectStore()
 
   const handleEditorMount: OnMount = useCallback((editor) => {
     editorRef.current = editor
+    if (revealLine) {
+      editor.revealLineInCenter(revealLine)
+      editor.setPosition({ lineNumber: revealLine, column: 1 })
+    }
     editor.focus()
-  }, [])
+  }, [revealLine])
 
   const handleChange = useCallback(
     (value: string | undefined) => {
@@ -24,6 +29,14 @@ export function CodeEditor({ tab }: CodeEditorProps) {
     },
     [tab.id, updateTabContent]
   )
+
+  useEffect(() => {
+    if (revealLine && editorRef.current) {
+      editorRef.current.revealLineInCenter(revealLine)
+      editorRef.current.setPosition({ lineNumber: revealLine, column: 1 })
+      editorRef.current.focus()
+    }
+  }, [revealLine])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

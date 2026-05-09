@@ -28,6 +28,7 @@ function Project() {
   } = useProjectStore()
 
   const [treeVisible, setTreeVisible] = useState(true)
+  const [revealLine, setRevealLine] = useState<number | undefined>(undefined)
   const activeProject = projects.find((p) => p.id === activeProjectId)
   const activeTab = openTabs.find((t) => t.id === activeTabId) ?? null
 
@@ -97,6 +98,11 @@ function Project() {
   }, [addProject, setActiveProject])
 
   const handleCloseProject = useCallback((id: string) => {
+    const dirtyTabs = useProjectStore.getState().openTabs.filter((t) => t.isDirty)
+    if (dirtyTabs.length > 0) {
+      const answer = confirm(`有 ${dirtyTabs.length} 个文件未保存，确定关闭项目吗？`)
+      if (!answer) return
+    }
     removeProject(id)
     saveProjects()
   }, [removeProject])
@@ -136,6 +142,7 @@ function Project() {
 
   const handleSearchResult = useCallback(async (result: SearchResult) => {
     await handleFileSelect({ name: result.fileName, path: result.filePath, isDirectory: false })
+    setRevealLine(result.line)
   }, [handleFileSelect])
 
   useEffect(() => {
@@ -212,7 +219,7 @@ function Project() {
 
         <div className="flex-1 overflow-hidden">
           {activeTab ? (
-            <CodeEditor tab={activeTab} />
+            <CodeEditor tab={activeTab} revealLine={revealLine} />
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-[var(--foreground-subtle)]">
               点击左侧文件开始编辑

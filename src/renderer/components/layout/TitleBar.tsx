@@ -28,6 +28,11 @@ export function TitleBar() {
   }
 
   const handleCloseProject = async (id: string) => {
+    const dirtyTabs = useProjectStore.getState().openTabs.filter((t) => t.isDirty)
+    if (dirtyTabs.length > 0) {
+      const answer = confirm(`有 ${dirtyTabs.length} 个文件未保存，确定关闭项目吗？`)
+      if (!answer) return
+    }
     removeProject(id)
     const { projects, activeProjectId } = useProjectStore.getState()
     await window.api.settings.set('project.list', JSON.stringify(projects))
