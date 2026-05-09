@@ -1,3 +1,5 @@
+import type { FileNode, SearchResult } from '../../shared/types'
+
 export interface ElectronApi {
   terminal: {
     create: (opts?: Record<string, unknown>) => Promise<{ id: string; pid: number }>
@@ -6,31 +8,24 @@ export interface ElectronApi {
     kill: (id: string) => Promise<void>
     onData: (callback: (id: string, data: string) => void) => () => void
   }
-  ftp: {
-    connect: (opts: Record<string, unknown>) => Promise<string>
-    disconnect: (id: string) => Promise<void>
-    list: (id: string, path: string) => Promise<unknown[]>
-    download: (connId: string, remotePath: string, localPath: string) => Promise<void>
-    upload: (connId: string, localPath: string, remotePath: string) => Promise<void>
-    delete: (connId: string, path: string) => Promise<void>
-    rename: (connId: string, oldPath: string, newPath: string) => Promise<void>
-    mkdir: (connId: string, path: string) => Promise<void>
-    onProgress: (callback: (progress: Record<string, unknown>) => void) => () => void
-  }
   files: {
     read: (path: string, encoding?: string) => Promise<{ content: string; encoding: string }>
     write: (path: string, content: string, encoding?: string) => Promise<void>
-    list: (path: string) => Promise<unknown[]>
-    stat: (path: string) => Promise<unknown>
+    list: (path: string) => Promise<FileNode[]>
+    stat: (path: string) => Promise<{ size: number; isFile: boolean; isDirectory: boolean; modifiedAt: Date; createdAt: Date }>
+    create: (options: { path: string; type: 'file' | 'directory' }) => Promise<void>
+    rename: (oldPath: string, newPath: string) => Promise<void>
+    delete: (path: string) => Promise<void>
+    search: (rootPath: string, query: string, maxResults?: number) => Promise<SearchResult[]>
   }
-  services: {
-    define: (def: Record<string, unknown>) => Promise<void>
-    start: (id: string) => Promise<void>
-    stop: (id: string) => Promise<void>
-    restart: (id: string) => Promise<void>
-    list: () => Promise<unknown[]>
-    onLog: (callback: (entry: Record<string, unknown>) => void) => () => void
-    onStatusChange: (callback: (id: string, status: string) => void) => () => void
+  settings: {
+    get: (key: string) => Promise<string | null>
+    set: (key: string, value: string) => Promise<void>
+    getAll: () => Promise<Record<string, string>>
+  }
+  project: {
+    openDialog: () => Promise<string | null>
+    parseGitignore: (projectPath: string) => Promise<string | null>
   }
 }
 
