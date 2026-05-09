@@ -1,0 +1,14 @@
+appId: com.norlandsoft.aircode
+productName: AirCode
+directories:
+  buildResources: resources
+  output: release
+files:
+  - out
+  - "!out/renderer/**/*.map"
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  artifactName: ${name}-${version}-${arch}.${ext}
