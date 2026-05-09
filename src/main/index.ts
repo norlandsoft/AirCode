@@ -1,17 +1,18 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, nativeImage } from 'electron'
 import { join } from 'path'
 import { registerTerminalHandlers } from './ipc/terminal'
-import { registerFtpHandlers } from './ipc/ftp'
 import { registerFileHandlers } from './ipc/files'
-import { registerServiceHandlers } from './ipc/services'
+import { registerSettingsHandlers } from './ipc/settings'
+import { registerProjectHandlers } from './ipc/project'
+import { closeDb } from './db'
 
 let mainWindow: BrowserWindow | null = null
 
 function registerIpcHandlers(): void {
   registerTerminalHandlers()
-  registerFtpHandlers()
   registerFileHandlers()
-  registerServiceHandlers()
+  registerSettingsHandlers()
+  registerProjectHandlers()
 }
 
 function createWindow(): void {
@@ -22,14 +23,20 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    icon: nativeImage.createFromPath(join(__dirname, '../../resources/icon.png')),
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 16, y: 8 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+
+  mainWindow.on('close', () => {
+    closeDb()
+    app.quit()
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -60,7 +67,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  closeDb()
+  app.quit()
 })
