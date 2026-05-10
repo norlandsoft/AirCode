@@ -25,10 +25,10 @@ export function GlobalSearch({ projectPath, onResultClick }: GlobalSearchProps) 
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--background-alt)]">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <Search size={14} className="shrink-0 text-[var(--foreground-subtle)]" />
+      <div className="flex items-center gap-2 px-3" style={{ height: 'var(--height-toolbar)' }}>
+        <Search size={13} className="shrink-0 text-[var(--foreground-subtle)]" />
         <input
-          className="min-w-0 flex-1 bg-transparent text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--foreground-subtle)]"
+          className="min-w-0 flex-1 bg-transparent text-[var(--text-xs)] text-[var(--foreground)] outline-none placeholder:text-[var(--foreground-subtle)]"
           placeholder="搜索文件内容..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -37,7 +37,7 @@ export function GlobalSearch({ projectPath, onResultClick }: GlobalSearchProps) 
           }}
           autoFocus
         />
-        {isSearching && <span className="text-xs text-[var(--foreground-subtle)]">搜索中...</span>}
+        {isSearching && <span className="text-[var(--text-xs)] text-[var(--foreground-subtle)]">搜索中...</span>}
       </div>
 
       {searchResults.length > 0 && (
@@ -45,7 +45,7 @@ export function GlobalSearch({ projectPath, onResultClick }: GlobalSearchProps) 
           {searchResults.map((result, i) => (
             <div
               key={`${result.filePath}-${result.line}-${i}`}
-              className="flex cursor-pointer items-start gap-2 px-3 py-1.5 text-xs hover:bg-[var(--hover-bg)]"
+              className="flex cursor-pointer items-start gap-2 px-3 py-1 text-[var(--text-xs)] hover:bg-[var(--hover-bg)]"
               onClick={() => onResultClick(result)}
             >
               <FileText size={12} className="mt-0.5 shrink-0 text-[var(--foreground-subtle)]" />
@@ -68,7 +68,7 @@ export function GlobalSearch({ projectPath, onResultClick }: GlobalSearchProps) 
       )}
 
       {searchResults.length === 0 && searchQuery && !isSearching && (
-        <div className="px-3 py-3 text-center text-xs text-[var(--foreground-subtle)]">
+        <div className="px-3 py-3 text-center text-[var(--text-xs)] text-[var(--foreground-subtle)]">
           没有找到结果
         </div>
       )}

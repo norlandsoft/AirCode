@@ -185,7 +185,7 @@ function Project() {
       </ResizablePanel>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-8 items-center gap-1 border-b border-[var(--border)] px-2">
+        <div className="flex items-center gap-1 border-b border-[var(--border)] px-2" style={{ height: 'var(--height-toolbar)' }}>
           <button
             className="rounded p-1 text-[var(--foreground-subtle)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)]"
             onClick={() => setTreeVisible(!treeVisible)}

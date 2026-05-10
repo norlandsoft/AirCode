@@ -40,7 +40,7 @@ export function TitleBar() {
   }
 
   return (
-    <div className="drag-region flex h-[32px] items-center border-b border-[var(--border)] bg-[var(--titlebar-bg)] pl-[78px] pr-4">
+    <div className="drag-region flex items-center border-b border-[var(--border)] bg-[var(--titlebar-bg)] pl-[78px] pr-4" style={{ height: 'var(--height-titlebar)' }}>
       {showProjectSwitcher ? (
         <ProjectDropdown
           projects={projects}
@@ -50,7 +50,7 @@ export function TitleBar() {
           onClose={handleCloseProject}
         />
       ) : (
-        <span className="text-sm font-semibold text-[var(--foreground)] select-none">AirCode</span>
+        <span className="text-[var(--text-sm)] font-semibold text-[var(--foreground)] select-none">AirCode</span>
       )}
     </div>
   )

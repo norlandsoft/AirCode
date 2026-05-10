@@ -112,7 +112,7 @@ export function FileTreeNode({
   return (
     <>
       <div
-        className={`flex cursor-pointer items-center gap-1 py-0.5 pr-2 text-xs select-none ${
+        className={`flex cursor-pointer items-center gap-1 pr-2 text-[var(--text-xs)] select-none ${
           isSelected ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-fg)]' : 'text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
         } ${isDragOver ? 'bg-[var(--primary-lighter)] outline outline-1 outline-[var(--primary)]' : ''}`}
         style={{ paddingLeft: depth * 16 + 8 }}
@@ -141,12 +141,12 @@ export function FileTreeNode({
         ) : (
           <>
             <span className="w-[14px] shrink-0" />
-            <span className="shrink-0 text-xs leading-none">{getFileIcon(node.name)}</span>
+            <span className="shrink-0 text-[var(--text-xs)] leading-none">{getFileIcon(node.name)}</span>
           </>
         )}
         {isRenaming ? (
           <input
-            className="ml-1 min-w-0 flex-1 rounded border border-[var(--primary)] bg-[var(--background)] px-1 py-0 text-xs outline-none"
+            className="ml-1 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--primary)] bg-[var(--background)] px-1 py-0 text-[var(--text-xs)] outline-none"
             value={renameValue}
             autoFocus
             onChange={(e) => setRenameValue(e.target.value)}

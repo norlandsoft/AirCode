@@ -37,20 +37,20 @@ export function ProjectDropdown({ projects, activeProjectId, onSelect, onOpen, o
   return (
     <div ref={ref} className="relative">
       <button
-        className="no-drag flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--hover-bg)] transition-colors"
+        className="no-drag flex items-center gap-1.5 rounded-[var(--radius-md)] px-2 py-1 text-[var(--text-xs)] font-medium text-[var(--foreground)] hover:bg-[var(--hover-bg)] transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        {activeProject ? getProjectIcon(activeProject.type) : <Folder size={14} />}
+        {activeProject ? getProjectIcon(activeProject.type) : <Folder size={13} />}
         <span className="max-w-[150px] truncate">{activeProject?.name ?? '选择项目'}</span>
-        <ChevronDown size={12} className={`text-[var(--foreground-subtle)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={11} className={`text-[var(--foreground-subtle)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-md border border-[var(--border)] bg-[var(--background)] py-1 shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-0.5 min-w-[200px] rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--background)] py-0.5 shadow-lg">
           {projects.map((project) => (
             <div
               key={project.id}
-              className={`group flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+              className={`group flex items-center gap-2 px-3 py-1 text-[var(--text-xs)] cursor-pointer transition-colors ${
                 project.id === activeProjectId
                   ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-fg)]'
                   : 'text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -63,25 +63,25 @@ export function ProjectDropdown({ projects, activeProjectId, onSelect, onOpen, o
               {getProjectIcon(project.type)}
               <span className="min-w-0 flex-1 truncate">{project.name}</span>
               <button
-                className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-[var(--hover-bg)] group-hover:opacity-100"
+                className="shrink-0 rounded-[var(--radius-sm)] p-0.5 opacity-0 transition-opacity hover:bg-[var(--hover-bg)] group-hover:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation()
                   onClose(project.id)
                 }}
               >
-                <X size={12} className="text-[var(--foreground-subtle)]" />
+                <X size={11} className="text-[var(--foreground-subtle)]" />
               </button>
             </div>
           ))}
-          <div className="my-1 border-t border-[var(--border)]" />
+          <div className="my-0.5 border-t border-[var(--border)]" />
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-[var(--foreground)] hover:bg-[var(--hover-bg)] transition-colors"
+            className="flex w-full items-center gap-2 px-3 py-1 text-[var(--text-xs)] text-[var(--foreground)] hover:bg-[var(--hover-bg)] transition-colors"
             onClick={() => {
               setIsOpen(false)
               onOpen()
             }}
           >
-            <Plus size={14} />
+            <Plus size={13} />
             <span>打开项目...</span>
           </button>
         </div>

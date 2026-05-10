@@ -127,8 +127,8 @@ export function FileTree({ projectPath, projectName, onFileSelect }: FileTreePro
   return (
     <div className="flex h-full flex-col bg-[var(--sidebar-bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-        <span className="truncate text-xs font-medium text-[var(--foreground)]">{projectName}</span>
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-3" style={{ height: 'var(--height-toolbar)' }}>
+        <span className="truncate text-[var(--text-xs)] font-semibold tracking-wide text-[var(--foreground-muted)]">{projectName}</span>
         <div className="flex items-center gap-1">
           <button
             className="rounded p-1 text-[var(--foreground-subtle)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)]"
@@ -164,9 +164,9 @@ export function FileTree({ projectPath, projectName, onFileSelect }: FileTreePro
 
       {/* New item input */}
       {newItemParent && (
-        <div className="border-t border-[var(--border)] px-3 py-2">
+        <div className="border-t border-[var(--border)] px-3 py-1">
           <input
-            className="w-full rounded border border-[var(--primary)] bg-[var(--background)] px-2 py-1 text-xs outline-none"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--primary)] bg-[var(--background)] px-2 text-[var(--text-xs)] outline-none"
             value={newItemName}
             autoFocus
             placeholder={newItemParent.type === 'file' ? '文件名' : '文件夹名'}

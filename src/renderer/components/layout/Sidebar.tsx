@@ -1,46 +1,51 @@
 import { moduleRegistry } from '@/modules/registry'
 import { useAppStore } from '@/stores/app'
+import { Icon } from '@/lib/icons'
 
-interface SidebarProps {
-  collapsed: boolean
-}
-
-export function Sidebar({ collapsed }: SidebarProps) {
-  const { activeModuleId, setActiveModule, toggleSidebar } = useAppStore()
+export function Sidebar() {
+  const { activeModuleId, setActiveModule } = useAppStore()
   const modules = moduleRegistry.getAll()
 
-  return (
-    <div
-      className={`flex flex-col items-center border-r border-[var(--border)] bg-[var(--sidebar-bg)] transition-all ${
-        collapsed ? 'w-12' : 'w-14'
-      }`}
-    >
-      <div className="drag-region flex h-12 w-full items-center justify-center">
-        <span className="text-sm font-bold text-[var(--accent)]">AC</span>
-      </div>
+  // Last module is settings, keep it at the bottom
+  const mainModules = modules.slice(0, -1)
+  const settingsModule = modules[modules.length - 1]
 
-      <div className="no-drag flex flex-1 flex-col gap-1 py-2">
-        {modules.map((mod) => (
+  return (
+    <div className="flex flex-col items-center border-r border-[var(--border)] bg-[var(--sidebar-bg)]" style={{ width: 'var(--height-sidebar)' }}>
+      <div className="h-2" />
+      <div className="flex flex-1 flex-col items-center gap-0.5">
+        {mainModules.map((mod) => (
           <button
             key={mod.id}
-            className={`flex h-10 w-full items-center justify-center rounded-sm text-lg transition-colors hover:bg-[var(--border)] ${
-              activeModuleId === mod.id ? 'bg-[var(--border)] text-[var(--accent)]' : 'text-[var(--sidebar-fg)]'
+            className={`flex items-center justify-center rounded-[var(--radius-md)] transition-colors ${
+              activeModuleId === mod.id
+                ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-fg)]'
+                : 'text-[var(--sidebar-fg)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--foreground-muted)]'
             }`}
+            style={{ width: '36px', height: '36px' }}
             onClick={() => setActiveModule(mod.id)}
             title={mod.name}
           >
-            {mod.icon}
+            <Icon name={mod.icon} size={20} />
           </button>
         ))}
       </div>
-
-      <button
-        className="mb-2 flex h-8 w-full items-center justify-center text-[var(--sidebar-fg)] hover:bg-[var(--border)]"
-        onClick={toggleSidebar}
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {collapsed ? '»' : '«'}
-      </button>
+      {settingsModule && (
+        <div className="pb-2">
+          <button
+            className={`flex items-center justify-center rounded-[var(--radius-md)] transition-colors ${
+              activeModuleId === settingsModule.id
+                ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-fg)]'
+                : 'text-[var(--sidebar-fg)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--foreground-muted)]'
+            }`}
+            style={{ width: '36px', height: '36px' }}
+            onClick={() => setActiveModule(settingsModule.id)}
+            title={settingsModule.name}
+          >
+            <Icon name={settingsModule.icon} size={20} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -20,7 +20,12 @@ export function registerTerminalHandlers(): void {
     const p = getPty()
     const id = crypto.randomUUID()
 
-    const terminal = p.spawn(shell || process.env.SHELL || '/bin/zsh', [], {
+    const shellPath = shell || process.env.SHELL || '/bin/zsh'
+    const args = shellPath.endsWith('zsh') || shellPath.endsWith('bash')
+      ? ['-l']
+      : []
+
+    const terminal = p.spawn(shellPath, args, {
       name: 'xterm-256color',
       cols,
       rows,

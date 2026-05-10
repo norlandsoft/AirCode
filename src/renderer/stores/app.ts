@@ -4,19 +4,16 @@ interface AppState {
   activeModuleId: string | null
   openTabs: Array<{ moduleId: string; instanceId: string; title: string }>
   activeTabId: string | null
-  sidebarCollapsed: boolean
   setActiveModule: (id: string) => void
   openTab: (moduleId: string, instanceId: string, title: string) => void
   closeTab: (instanceId: string) => void
   setActiveTab: (instanceId: string | null) => void
-  toggleSidebar: () => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
   activeModuleId: null,
   openTabs: [],
   activeTabId: null,
-  sidebarCollapsed: false,
 
   setActiveModule: (id) => set({ activeModuleId: id }),
 
@@ -52,7 +49,5 @@ export const useAppStore = create<AppState>((set) => ({
         activeModuleId: tab?.moduleId ?? state.activeModuleId
       }
     })
-  },
-
-  toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }))
+  }
 }))

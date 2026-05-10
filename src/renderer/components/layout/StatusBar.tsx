@@ -6,7 +6,7 @@ export function StatusBar() {
   const activeModule = activeModuleId ? moduleRegistry.get(activeModuleId) : null
 
   return (
-    <div className="flex h-6 items-center justify-between border-t border-[var(--border)] bg-[var(--sidebar-bg)] px-3 text-[10px] text-[var(--sidebar-fg)]">
+    <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--statusbar-bg)] px-3 text-[var(--text-xs)] text-[var(--foreground-subtle)]" style={{ height: 'var(--height-statusbar)' }}>
       <div className="flex items-center gap-3">
         {activeModule && <span>{activeModule.name}</span>}
       </div>

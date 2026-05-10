@@ -8,7 +8,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['node-pty', 'basic-ftp', 'keytar', 'fsevents']
+        external: ['node-pty', 'basic-ftp', 'keytar', 'fsevents', 'better-sqlite3']
       }
     }
   },
