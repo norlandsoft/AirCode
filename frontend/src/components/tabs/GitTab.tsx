@@ -8,7 +8,7 @@ interface GitTabProps {
   tabId: string
 }
 
-export function GitTab({ tabId }: GitTabProps) {
+export function GitTab({ tabId: _tabId }: GitTabProps) {
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId)
   )

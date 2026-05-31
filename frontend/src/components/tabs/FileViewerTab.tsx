@@ -9,7 +9,7 @@ interface FileViewerTabProps {
   tabId: string
 }
 
-export function FileViewerTab({ tabId }: FileViewerTabProps) {
+export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
   const fileTree = useProjectStore((s) => s.fileTree)
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId)
@@ -29,26 +29,29 @@ export function FileViewerTab({ tabId }: FileViewerTabProps) {
   }, [activeProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDir = useCallback(async (dirPath: string) => {
-    setExpandedDirs((prev) => {
-      const next = new Set(prev)
-      if (next.has(dirPath)) {
+    if (expandedDirs.has(dirPath)) {
+      setExpandedDirs((prev) => {
+        const next = new Set(prev)
         next.delete(dirPath)
-      } else {
+        return next
+      })
+    } else {
+      setExpandedDirs((prev) => {
+        const next = new Set(prev)
         next.add(dirPath)
-        const a = await api()
-        a.project.list_directory(dirPath).then((result) => {
-          if (result.entries) {
-            setSubDirs((prev) => {
-              const next = new Map(prev)
-              next.set(dirPath, result.entries as FileEntry[])
-              return next
-            })
-          }
+        return next
+      })
+      const a = await api()
+      const result = await a.project.list_directory(dirPath)
+      if (result.entries) {
+        setSubDirs((prev) => {
+          const next = new Map(prev)
+          next.set(dirPath, result.entries as FileEntry[])
+          return next
         })
       }
-      return next
-    })
-  }, [])
+    }
+  }, [expandedDirs])
 
   const handleFileClick = useCallback(async (filePath: string, fileName: string) => {
     const a = await api()
