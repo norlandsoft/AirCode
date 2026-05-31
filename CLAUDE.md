@@ -28,10 +28,9 @@ Communication: `window.pywebview.api` (JS→Python), `window.evaluate_js()` (Pyt
 
 Left-right two-panel:
 - **Left panel**: Project list (each project = a working directory)
-- **Right panel**: Tab workspace with 4 tab types:
+- **Right panel**: Tab workspace with 3 tab types:
+  - Code (file tree + Monaco Editor)
   - Terminal (xterm.js + PTY)
-  - Editor (Monaco Editor)
-  - File Viewer (file tree + preview)
   - Git (status/commit/log/diff)
 
 ## Commands
@@ -67,7 +66,7 @@ frontend/
 │   │   ├── layout/      # TitleBar, StatusBar
 │   │   ├── project/     # ProjectList
 │   │   ├── workspace/   # TabBar, Workspace
-│   │   └── tabs/        # TerminalTab, EditorTab, FileViewerTab, GitTab
+│   │   └── tabs/        # TerminalTab, CodeTab, GitTab
 │   └── index.css        # Tailwind + global styles
 ├── vite.config.ts
 └── package.json

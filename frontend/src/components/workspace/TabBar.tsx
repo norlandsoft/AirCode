@@ -1,13 +1,12 @@
-import { Plus, X, Terminal, FolderTree, FileCode } from "lucide-react"
+import { Plus, X, Terminal, FolderTree } from "lucide-react"
 import { useTabStore } from "@/stores/useTabStore"
 import { useProjectStore } from "@/stores/useProjectStore"
 import type { TabType } from "@/lib/types"
 import { useState, useRef, useEffect } from "react"
 
 const TAB_ADD_OPTIONS: { type: TabType; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
-  { type: "file_viewer", label: "文件", Icon: FolderTree },
+  { type: "code", label: "代码", Icon: FolderTree },
   { type: "terminal", label: "终端", Icon: Terminal },
-  { type: "editor", label: "代码", Icon: FileCode },
 ]
 
 export function TabBar() {

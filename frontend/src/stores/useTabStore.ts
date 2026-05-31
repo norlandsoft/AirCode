@@ -16,15 +16,13 @@ interface TabState {
 
 const TAB_ICONS: Record<TabType, string> = {
   terminal: "🖥️",
-  editor: "📝",
-  file_viewer: "📁",
+  code: "📝",
   git: "🔀",
 }
 
 const TAB_TITLES: Record<TabType, string> = {
   terminal: "终端",
-  editor: "编辑器",
-  file_viewer: "文件",
+  code: "代码",
   git: "Git",
 }
 

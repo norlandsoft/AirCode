@@ -67,7 +67,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="AirCode.app",
-    icon=None,
+    icon=str(PROJECT_ROOT / "release" / "icon.icns"),
     bundle_identifier="com.aircode.app",
     version="0.1.0",
     info_plist={

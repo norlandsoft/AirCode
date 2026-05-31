@@ -1,26 +1,31 @@
 import { useState, useEffect, useCallback } from "react"
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from "lucide-react"
+import Editor from "@monaco-editor/react"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { useTabStore } from "@/stores/useTabStore"
+import { useEditorStore } from "@/stores/useEditorStore"
 import type { FileEntry } from "@/lib/types"
 import { api } from "@/lib/api"
 
-interface FileViewerTabProps {
+interface CodeTabProps {
   tabId: string
 }
 
-export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
+export function CodeTab({ tabId }: CodeTabProps) {
   const fileTree = useProjectStore((s) => s.fileTree)
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId)
   )
   const loadFileTree = useProjectStore((s) => s.loadFileTree)
-  const addTab = useTabStore((s) => s.addTab)
+
+  const openFile = useEditorStore((s) => s.openFile)
+  const saveFile = useEditorStore((s) => s.saveFile)
+  const updateContent = useEditorStore((s) => s.updateContent)
+  const activeFile = useEditorStore((s) => s.activeFile)
+  const updateTab = useTabStore((s) => s.updateTab)
 
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [subDirs, setSubDirs] = useState<Map<string, FileEntry[]>>(new Map())
-  const [previewContent, setPreviewContent] = useState<string | null>(null)
-  const [previewName, setPreviewName] = useState<string>("")
 
   useEffect(() => {
     if (activeProject) {
@@ -54,39 +59,52 @@ export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
   }, [expandedDirs])
 
   const handleFileClick = useCallback(async (filePath: string, fileName: string) => {
-    const a = await api()
-    const result = await a.editor.read_file(filePath)
-    if (result.content) {
-      setPreviewContent(result.content as string)
-      setPreviewName(fileName)
+    const file = await openFile(filePath)
+    if (file) {
+      updateTab(tabId, { title: fileName, filePath })
     }
-  }, [])
+  }, [openFile, updateTab, tabId])
 
-  const openInEditor = useCallback((filePath: string, fileName: string) => {
-    if (!activeProject) return
-    addTab("editor", activeProject.id, { filePath, title: fileName })
-  }, [activeProject, addTab])
+  const handleChange = useCallback(
+    (value: string | undefined) => {
+      if (!activeFile || !value) return
+      updateContent(activeFile.path, value)
+      updateTab(tabId, { isDirty: true })
+    },
+    [activeFile, tabId, updateContent, updateTab]
+  )
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault()
+        if (activeFile) {
+          saveFile(activeFile.path).then((ok) => {
+            if (ok) updateTab(tabId, { isDirty: false })
+          })
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [activeFile, tabId, saveFile, updateTab])
 
   const renderTree = (entries: FileEntry[], depth: number = 0) => {
     return entries.map((entry) => {
       const isExpanded = expandedDirs.has(entry.path)
       const subEntries = subDirs.get(entry.path)
+      const isActive = activeFile?.path === entry.path
 
       return (
         <div key={entry.path}>
           <div
-            className="flex items-center gap-1 cursor-pointer py-0.5 hover:bg-panel-hover text-xs"
+            className={`flex items-center gap-1 cursor-pointer py-0.5 hover:bg-panel-hover text-xs ${isActive ? "bg-panel-hover text-text-primary" : ""}`}
             style={{ paddingLeft: `${depth * 16 + 8}px` }}
             onClick={() => {
               if (entry.is_dir) {
                 toggleDir(entry.path)
               } else {
                 handleFileClick(entry.path, entry.name)
-              }
-            }}
-            onDoubleClick={() => {
-              if (!entry.is_dir) {
-                openInEditor(entry.path, entry.name)
               }
             }}
           >
@@ -98,10 +116,10 @@ export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
             ) : (
               <>
                 <span className="w-3" />
-                <File size={14} className="text-text-secondary" />
+                <File size={14} className={isActive ? "text-text-primary" : "text-text-secondary"} />
               </>
             )}
-            <span className="ml-1 truncate text-text-secondary">{entry.name}</span>
+            <span className={`ml-1 truncate ${isActive ? "text-text-primary" : "text-text-secondary"}`}>{entry.name}</span>
           </div>
           {entry.is_dir && isExpanded && subEntries && renderTree(subEntries, depth + 1)}
         </div>
@@ -116,19 +134,29 @@ export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
           <div className="p-4 text-center text-xs text-text-muted">请先选择一个项目</div>
         )}
       </div>
-      <div className="flex-1 overflow-auto p-4">
-        {previewContent ? (
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-text-muted">{previewName} (预览)</span>
-            </div>
-            <pre className="whitespace-pre-wrap font-mono text-xs text-text-secondary">
-              {previewContent}
-            </pre>
-          </div>
+      <div className="flex-1 overflow-hidden">
+        {activeFile ? (
+          <Editor
+            height="100%"
+            language={activeFile.language}
+            value={activeFile.content}
+            onChange={handleChange}
+            theme="vs"
+            options={{
+              fontSize: 14,
+              fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              padding: { top: 8 },
+              lineNumbers: "on",
+              renderLineHighlight: "line",
+              wordWrap: "on",
+              tabSize: 2,
+            }}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-text-muted">
-            单击文件预览，双击在编辑器中打开
+            单击文件开始编辑
           </div>
         )}
       </div>

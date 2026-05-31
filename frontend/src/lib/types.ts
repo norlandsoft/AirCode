@@ -1,4 +1,4 @@
-export type TabType = "terminal" | "editor" | "file_viewer" | "git"
+export type TabType = "terminal" | "code" | "git"
 
 export interface Tab {
   id: string

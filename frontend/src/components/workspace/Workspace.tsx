@@ -3,8 +3,7 @@ import { TabBar } from "./TabBar"
 import { useTabStore } from "@/stores/useTabStore"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { TerminalTab } from "@/components/tabs/TerminalTab"
-import { EditorTab } from "@/components/tabs/EditorTab"
-import { FileViewerTab } from "@/components/tabs/FileViewerTab"
+import { CodeTab } from "@/components/tabs/CodeTab"
 import { GitTab } from "@/components/tabs/GitTab"
 
 export function Workspace() {
@@ -42,13 +41,12 @@ export function Workspace() {
           <div className="flex h-full items-center justify-center text-text-muted">
             <div className="text-center">
               <p>点击 + 创建标签页</p>
-              <p className="mt-1 text-xs">文件 / 终端 / 代码</p>
+              <p className="mt-1 text-xs">代码 / 终端</p>
             </div>
           </div>
         )}
         {activeTab?.type === "terminal" && <TerminalTab tabId={activeTab.id} />}
-        {activeTab?.type === "editor" && <EditorTab tabId={activeTab.id} filePath={activeTab.filePath} />}
-        {activeTab?.type === "file_viewer" && <FileViewerTab tabId={activeTab.id} />}
+        {activeTab?.type === "code" && <CodeTab tabId={activeTab.id} />}
         {activeTab?.type === "git" && <GitTab tabId={activeTab.id} />}
       </div>
     </div>

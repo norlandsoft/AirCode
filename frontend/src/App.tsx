@@ -69,8 +69,8 @@ export default function App() {
           filePath: tab.filePath,
           title: tab.title,
         })
-        // Restore draft content for editor tabs
-        if (tab.type === "editor" && tab.filePath && workspace.drafts?.[tab.filePath]) {
+        // Restore draft content for code tabs
+        if (tab.type === "code" && tab.filePath && workspace.drafts?.[tab.filePath]) {
           const file = await openFile(tab.filePath)
           if (file) {
             updateContent(tab.filePath, workspace.drafts[tab.filePath])

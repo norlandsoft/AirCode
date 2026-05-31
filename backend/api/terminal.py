@@ -48,7 +48,7 @@ class TerminalApi:
                     os.close(slave_fd)
 
                 os.chdir(work_dir)
-                os.execvp(shell, [shell])
+                os.execvp(shell, [shell, "-l"])
             else:
                 # Parent process
                 os.close(slave_fd)
