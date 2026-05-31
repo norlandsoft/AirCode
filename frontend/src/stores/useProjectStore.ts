@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import type { Project, FileEntry } from "@/lib/types"
 import { api } from "@/lib/api"
+import { useSettingsStore } from "./useSettingsStore"
 
 interface ProjectState {
   projects: Project[]
@@ -11,8 +12,8 @@ interface ProjectState {
   removeProject: (id: string) => void
   setActiveProject: (id: string) => void
   loadFileTree: (dirPath: string) => Promise<void>
-  loadFromStorage: () => void
-  saveToStorage: () => void
+  loadFromStorage: () => Promise<void>
+  _saveToBackend: () => Promise<void>
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -40,7 +41,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       activeProjectId: state.activeProjectId || project.id,
     }))
 
-    get().saveToStorage()
+    await get()._saveToBackend()
 
     if (get().activeProjectId === project.id) {
       get().loadFileTree(path)
@@ -56,7 +57,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           : state.activeProjectId
       return { projects, activeProjectId }
     })
-    get().saveToStorage()
+    get()._saveToBackend()
   },
 
   setActiveProject: (id: string) => {
@@ -65,7 +66,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (project) {
       get().loadFileTree(project.path)
     }
-    get().saveToStorage()
+    get()._saveToBackend()
   },
 
   loadFileTree: async (dirPath: string) => {
@@ -75,26 +76,79 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ fileTree: (result.entries as FileEntry[]) || [] })
   },
 
-  loadFromStorage: () => {
-    try {
-      const data = localStorage.getItem("aircode_projects")
-      if (data) {
-        const parsed = JSON.parse(data)
-        set({
-          projects: parsed.projects || [],
-          activeProjectId: parsed.activeProjectId || null,
-        })
+  loadFromStorage: async () => {
+    // Load global settings (which includes recentProjects)
+    await useSettingsStore.getState().loadSettings()
+
+    // One-time migration from legacy localStorage
+    const legacyData = localStorage.getItem("aircode_projects")
+    if (legacyData) {
+      try {
+        const parsed = JSON.parse(legacyData)
+        if (parsed.projects && Array.isArray(parsed.projects)) {
+          // Import legacy projects into backend
+          const settings = useSettingsStore.getState().settings
+          const existingPaths = new Set(settings.recentProjects)
+          const newPaths = parsed.projects
+            .map((p: { path: string }) => p.path)
+            .filter((p: string) => !existingPaths.has(p))
+          if (newPaths.length > 0 || parsed.activeProjectId) {
+            await useSettingsStore.getState().updateSettings({
+              recentProjects: [...settings.recentProjects, ...newPaths],
+            })
+          }
+          // Restore project objects from legacy data
+          set({
+            projects: parsed.projects || [],
+            activeProjectId: parsed.activeProjectId || null,
+          })
+          // Clear legacy data
+          localStorage.removeItem("aircode_projects")
+          return
+        }
+      } catch {
+        // Ignore parse errors
       }
-    } catch {
-      // Ignore parse errors
     }
+
+    // Normal load from backend
+    const settings = useSettingsStore.getState().settings
+    const recentPaths = settings.recentProjects || []
+    if (recentPaths.length === 0) return
+
+    const a = await api()
+    const projects: Project[] = []
+    for (const projPath of recentPaths) {
+      const info = await a.project.get_project_info(projPath)
+      if (info.error || !info.exists) continue
+      projects.push({
+        id: projPath,
+        name: (info.name as string) || projPath.split("/").pop() || projPath,
+        path: projPath,
+        isGitRepo: (info.is_git_repo as boolean) || false,
+      })
+    }
+    set({
+      projects,
+      activeProjectId: projects[0]?.id || null,
+    })
   },
 
-  saveToStorage: () => {
+  _saveToBackend: async () => {
     const { projects, activeProjectId } = get()
-    localStorage.setItem(
-      "aircode_projects",
-      JSON.stringify({ projects, activeProjectId })
-    )
+    const recentProjects = projects.map((p) => p.path)
+    await useSettingsStore.getState().updateSettings({
+      recentProjects,
+    } as Partial<import("@/lib/types").AppSettings>)
+    // Also save active project as the first in list for convenience
+    if (activeProjectId) {
+      const reordered = [
+        activeProjectId,
+        ...recentProjects.filter((p) => p !== activeProjectId),
+      ]
+      await useSettingsStore.getState().updateSettings({
+        recentProjects: reordered,
+      } as Partial<import("@/lib/types").AppSettings>)
+    }
   },
 }))
