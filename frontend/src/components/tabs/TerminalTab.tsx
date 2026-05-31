@@ -36,10 +36,10 @@ export function TerminalTab({ tabId }: TerminalTabProps) {
 
     const term = new Terminal({
       theme: {
-        background: "#1e1e2e",
-        foreground: "#cdd6f4",
-        cursor: "#f5e0dc",
-        selectionBackground: "#45475a",
+        background: "#ffffff",
+        foreground: "#1a1b2e",
+        cursor: "#4a7dfc",
+        selectionBackground: "#e4e6eb",
       },
       fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,

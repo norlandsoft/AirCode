@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback } from "react"
-import { TitleBar } from "@/components/layout/TitleBar"
 import { StatusBar } from "@/components/layout/StatusBar"
 import { ProjectList } from "@/components/project/ProjectList"
 import { Workspace } from "@/components/workspace/Workspace"
@@ -116,8 +115,7 @@ export default function App() {
   }, [saveWorkspace])
 
   return (
-    <div className="flex h-screen flex-col">
-      <TitleBar />
+    <div className="flex h-screen flex-col border-t border-panel-border">
       <div ref={containerRef} className="flex flex-1 overflow-hidden">
         <ProjectList width={sidebarWidth} />
         {/* Resize handle */}

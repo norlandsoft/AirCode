@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { TabBar } from "./TabBar"
 import { useTabStore } from "@/stores/useTabStore"
 import { useProjectStore } from "@/stores/useProjectStore"
@@ -11,6 +12,14 @@ export function Workspace() {
     s.tabs.find((t) => t.id === s.activeTabId)
   )
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const ensureGitTab = useTabStore((s) => s.ensureGitTab)
+
+  // When active project changes, ensure git tab exists
+  useEffect(() => {
+    if (activeProjectId) {
+      ensureGitTab(activeProjectId)
+    }
+  }, [activeProjectId, ensureGitTab])
 
   if (!activeProjectId) {
     return (
@@ -33,7 +42,7 @@ export function Workspace() {
           <div className="flex h-full items-center justify-center text-text-muted">
             <div className="text-center">
               <p>点击 + 创建标签页</p>
-              <p className="mt-1 text-xs">终端 / 编辑器 / 文件 / Git</p>
+              <p className="mt-1 text-xs">文件 / 终端 / 代码</p>
             </div>
           </div>
         )}

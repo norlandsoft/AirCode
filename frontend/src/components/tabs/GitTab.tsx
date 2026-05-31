@@ -77,7 +77,7 @@ export function GitTab({ tabId: _tabId }: GitTabProps) {
       <div className="w-80 flex flex-col border-r border-panel-border">
         <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
           <div className="flex items-center gap-1.5 text-xs">
-            <GitBranch size={14} className="text-accent" />
+            <GitBranch size={14} className="text-text-secondary" />
             <span className="text-text-primary">{branch || "no branch"}</span>
           </div>
           <button

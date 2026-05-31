@@ -53,8 +53,9 @@ export function ProjectList({ width }: { width: number }) {
 
   return (
     <div className="flex h-full flex-col bg-panel-bg" style={{ width }}>
-      <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border">
-        <span className="text-xs font-medium uppercase tracking-wider text-text-muted">
+      {/* Header - 32px height, 0.95rem font */}
+      <div className="flex items-center justify-between px-3 border-b border-panel-border" style={{ height: 32 }}>
+        <span className="text-[0.95rem] font-medium text-text-muted">
           项目
         </span>
         <button
@@ -66,9 +67,10 @@ export function ProjectList({ width }: { width: number }) {
         </button>
       </div>
 
+      {/* Project list - 0.85rem, two-line items */}
       <div className="flex-1 overflow-y-auto py-1">
         {projects.length === 0 && (
-          <div className="px-3 py-4 text-center text-xs text-text-muted">
+          <div className="px-3 py-4 text-center text-[0.85rem] text-text-muted">
             点击 + 添加项目目录
           </div>
         )}
@@ -76,31 +78,39 @@ export function ProjectList({ width }: { width: number }) {
           <div
             key={project.id}
             onClick={() => setActiveProject(project.id)}
-            className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer text-[0.95rem] ${
+            className={`group flex items-start gap-2 px-3 py-2 cursor-pointer ${
               project.id === activeProjectId
                 ? "bg-panel-active text-text-primary"
                 : "text-text-secondary hover:bg-panel-hover hover:text-text-primary"
             }`}
-            title={project.path}
           >
-            <FolderOpen size={14} className="shrink-0 text-accent" />
-            {editingId === project.id ? (
-              <input
-                ref={inputRef}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={handleKeyDown}
-                className="flex-1 min-w-0 rounded bg-panel-bg border border-accent px-1 py-0 text-[0.95rem] text-text-primary outline-none"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <span className="truncate flex-1">{project.name}</span>
-            )}
-            {project.isGitRepo && (
-              <span className="text-[0.625rem] text-text-muted">git</span>
-            )}
-            <div className="hidden items-center gap-0.5 group-hover:flex">
+            <FolderOpen size={14} className="mt-0.5 shrink-0 text-text-secondary" />
+            {/* Two-line content: name + path */}
+            <div className="flex-1 min-w-0">
+              {editingId === project.id ? (
+                <input
+                  ref={inputRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={handleKeyDown}
+                  className="w-full rounded bg-panel-bg border border-accent px-1 py-0 text-[0.85rem] text-text-primary outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-[0.85rem] font-medium">{project.name}</span>
+                    {project.isGitRepo && (
+                      <span className="shrink-0 text-[0.625rem] text-text-muted">git</span>
+                    )}
+                  </div>
+                  <div className="truncate text-[0.7rem] text-text-muted">{project.path}</div>
+                </>
+              )}
+            </div>
+            {/* Action buttons on the right */}
+            <div className="hidden shrink-0 items-center gap-0.5 pt-0.5 group-hover:flex">
               <button
                 onClick={(e) => startRename(e, project.id, project.name)}
                 className="rounded p-0.5 text-text-muted hover:text-accent"

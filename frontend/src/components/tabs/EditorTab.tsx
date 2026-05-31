@@ -65,7 +65,7 @@ export function EditorTab({ tabId, filePath }: EditorTabProps) {
       language={activeFile.language}
       value={activeFile.content}
       onChange={handleChange}
-      theme="vs-dark"
+      theme="vs"
       options={{
         fontSize: 14,
         fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',

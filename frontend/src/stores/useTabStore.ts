@@ -11,6 +11,7 @@ interface TabState {
   updateTab: (id: string, updates: Partial<Tab>) => void
   getActiveTab: () => Tab | undefined
   getRestorableTabs: () => Tab[]
+  ensureGitTab: (projectId: string) => void
 }
 
 const TAB_ICONS: Record<TabType, string> = {
@@ -45,16 +46,34 @@ export const useTabStore = create<TabState>((set, get) => ({
       ...extra,
     }
 
-    set((state) => ({
-      tabs: [...state.tabs, tab],
-      activeTabId: id,
-    }))
+    set((state) => {
+      // Insert non-git tabs before the git tab; git tabs go to the end
+      let newTabs: Tab[]
+      if (type === "git") {
+        newTabs = [...state.tabs, tab]
+      } else {
+        const gitIndex = state.tabs.findIndex((t) => t.type === "git")
+        if (gitIndex >= 0) {
+          newTabs = [
+            ...state.tabs.slice(0, gitIndex),
+            tab,
+            ...state.tabs.slice(gitIndex),
+          ]
+        } else {
+          newTabs = [...state.tabs, tab]
+        }
+      }
+      return { tabs: newTabs, activeTabId: id }
+    })
 
     return id
   },
 
   removeTab: (id: string) => {
     set((state) => {
+      const tab = state.tabs.find((t) => t.id === id)
+      // Git tab cannot be closed
+      if (tab?.type === "git") return state
       const tabs = state.tabs.filter((t) => t.id !== id)
       const activeTabId =
         state.activeTabId === id
@@ -81,5 +100,13 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   getRestorableTabs: () => {
     return get().tabs.filter((t) => t.type !== "terminal")
+  },
+
+  ensureGitTab: (projectId: string) => {
+    const { tabs } = get()
+    const hasGit = tabs.some((t) => t.type === "git" && t.projectId === projectId)
+    if (!hasGit) {
+      get().addTab("git", projectId)
+    }
   },
 }))

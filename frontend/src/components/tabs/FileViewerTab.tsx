@@ -93,12 +93,12 @@ export function FileViewerTab({ tabId: _tabId }: FileViewerTabProps) {
             {entry.is_dir ? (
               <>
                 {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                {isExpanded ? <FolderOpen size={14} className="text-accent" /> : <Folder size={14} className="text-accent" />}
+                {isExpanded ? <FolderOpen size={14} className="text-text-secondary" /> : <Folder size={14} className="text-text-secondary" />}
               </>
             ) : (
               <>
                 <span className="w-3" />
-                <File size={14} className="text-text-muted" />
+                <File size={14} className="text-text-secondary" />
               </>
             )}
             <span className="ml-1 truncate text-text-secondary">{entry.name}</span>
