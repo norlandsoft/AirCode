@@ -2,72 +2,115 @@
 
 ## Project Overview
 
-AirCode is a local Mac desktop development workstation built with Electron + React + TypeScript. It integrates code editing, terminal, service management, and FTP client into a single-window multi-panel interface.
+AirCode is a local Mac desktop development workstation built with Python + PyWebView + React + TypeScript. It integrates code editing, terminal, file management, and Git operations into a single-window two-panel interface.
 
 ## Tech Stack
 
-- **Runtime**: Electron 35.x (electron-vite 3.x)
-- **Frontend**: React 19 + TypeScript 5.x
-- **Build**: electron-vite (Vite-based)
-- **Styling**: Tailwind CSS 4.x + shadcn/ui (new-york style)
+- **Runtime**: Python 3.12 + PyWebView 5.x
+- **Frontend**: React 19 + TypeScript 5.x (Vite)
+- **Styling**: Tailwind CSS 4.x + shadcn/ui
 - **State**: zustand
-- **Package Manager**: npm
+- **Editor**: Monaco Editor (@monaco-editor/react)
+- **Terminal**: xterm.js (@xterm/xterm)
+- **Package Manager**: npm (frontend) + pip (backend)
 
 ## Architecture
 
-Three-process Electron architecture:
-- **Main** (`src/main/`): Node.js process — IPC handlers, node-pty, basic-ftp, file system, service management
-- **Preload** (`src/preload/`): contextBridge API — type-safe IPC bridge with `contextIsolation: true`
-- **Renderer** (`src/renderer/`): React app — UI components, zustand stores, module system
-- **Shared** (`src/shared/`): TypeScript types shared across all processes
+Two-layer architecture:
+- **Backend** (`backend/`): Python — PyWebView window, system APIs (file I/O, PTY, git), exposed via `pywebview.api` bridge
+- **Frontend** (`frontend/`): React — UI components, zustand stores, all UI state
 
-## Module System
+Communication: `window.pywebview.api` (JS→Python), `window.evaluate_js()` (Python→JS for terminal streaming)
 
-All features are implemented as modules conforming to the `AirCodeModule` interface (`src/shared/types/module.ts`). Modules self-register into the `ModuleRegistry` and automatically appear in the sidebar, tab bar, and status bar.
+## Layout
 
-Phase 1 modules: Editor, Terminal, FTP, Services.
-Future modules: AI Agent, CI/CD, Web Browser, Chat.
-
-## IPC Pattern
-
-- Request/response: `ipcMain.handle` / `ipcRenderer.invoke` (Promise-based)
-- Streaming data (terminal output, logs): `webContents.send` / `ipcRenderer.on`
-- All IPC channel names follow `{module}:{action}` convention (e.g., `terminal:create`, `ftp:list`)
+Left-right two-panel:
+- **Left panel**: Project list (each project = a working directory)
+- **Right panel**: Tab workspace with 4 tab types:
+  - Terminal (xterm.js + PTY)
+  - Editor (Monaco Editor)
+  - File Viewer (file tree + preview)
+  - Git (status/commit/log/diff)
 
 ## Commands
 
 ```bash
-npm run dev          # Start dev server with HMR
-npm run build        # Production build (main + preload + renderer)
-npm run build:mac    # Build and package for macOS
+make setup      # Init Python venv + install all deps
+make dev        # Start Vite + PyWebView in dev mode
+make dev:fe     # Frontend only (mock API)
+make dev:be     # Backend only
+make build      # Build frontend + package macOS .app
+make clean      # Clean all build artifacts
 ```
 
-## Conventions
+## Directory Structure
 
-- **Language**: All code and comments in English. User-facing strings can be Chinese.
-- **Imports**: Use `@/` alias for renderer imports (configured in electron.vite.config.ts and tsconfig.web.json).
-- **Types**: Shared types go in `src/shared/types/`. Never duplicate type definitions across processes.
-- **Styling**: Use Tailwind utility classes. Custom CSS only in `src/renderer/styles.css` for global resets and CSS variables.
-- **State**: zustand stores in `src/renderer/stores/`. One store per concern.
-- **Components**: Functional React components. Follow the module directory structure (`components/{module-name}/`).
-- **Security**: Never disable `contextIsolation`. Never enable `nodeIntegration`. All Node.js operations stay in main process.
+```
+backend/
+├── main.py              # Entry point
+├── api/
+│   ├── base.py          # Root Api class + system dialogs
+│   ├── project.py       # Project/directory management
+│   ├── editor.py        # File read/write/search
+│   ├── terminal.py      # PTY sessions
+│   └── git.py           # Git operations
+└── requirements.txt
+
+frontend/
+├── src/
+│   ├── lib/api.ts       # PyWebView bridge + mock API
+│   ├── lib/types.ts     # Shared TypeScript types
+│   ├── stores/          # zustand stores (project, tab, editor, terminal)
+│   ├── components/
+│   │   ├── layout/      # TitleBar, StatusBar
+│   │   ├── project/     # ProjectList
+│   │   ├── workspace/   # TabBar, Workspace
+│   │   └── tabs/        # TerminalTab, EditorTab, FileViewerTab, GitTab
+│   └── index.css        # Tailwind + global styles
+├── vite.config.ts
+└── package.json
+```
+
+## Python Backend Conventions
+
+- Use `pathlib.Path` for all paths, never `os.path`
+- API methods return native types; errors return `{"error": "message"}`, never throw
+- One API class per module, method naming `{verb}_{noun}` (e.g., `read_file`, `list_directory`)
+- Type annotations on all public methods
+- Use `logging` module, never `print`
+- Terminal streaming: `_push_output()` via `window.evaluate_js()`
+
+## React Frontend Conventions
+
+- Functional components + TypeScript
+- All backend calls through `@/lib/api.ts` wrapper, never access `window.pywebview` directly
+- One zustand store per concern (project, tab, editor, terminal)
+- Tailwind CSS utility classes first; custom CSS only in `index.css`
+- Components organized by feature: `components/{feature}/`
+- Import alias `@/` maps to `frontend/src/`
+
+## General Conventions
+
+- Code and comments in English; user-facing UI strings in Chinese
+- Method naming follows `{module}:{action}` pattern
+- Security: never execute unverified user input, never concatenate shell commands
+- Frontend can run independently with mock API for development
+- Python runs in `.venv/aircode` virtual environment
 
 ## Key Dependencies
 
 | Package | Purpose |
 |---------|---------|
+| `pywebview` | Desktop window + JS-Python bridge |
+| `pyinstaller` | Package macOS .app |
 | `@monaco-editor/react` | Code editor component |
-| `@xterm/xterm` + `@xterm/addon-fit` | Terminal UI |
-| `node-pty` | Pseudo-terminal (main process only) |
-| `basic-ftp` | FTP client (main process only) |
-| `keytar` | macOS Keychain access for passwords |
+| `@xterm/xterm` | Terminal UI |
 | `zustand` | State management |
 | `lucide-react` | Icons |
-| `class-variance-authority` + `clsx` + `tailwind-merge` | shadcn/ui utilities |
+| `tailwindcss` | Styling |
 
 ## Build Artifacts
 
-- `out/main/` — Compiled main process
-- `out/preload/` — Compiled preload script
-- `out/renderer/` — Compiled renderer (HTML + JS + CSS)
-- `release/` — Packaged app (from electron-builder)
+- `frontend/dist/` — Built frontend (HTML + JS + CSS)
+- `release/AirCode.app` — Packaged macOS application
+- `.venv/aircode/` — Python virtual environment
