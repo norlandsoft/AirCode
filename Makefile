@@ -25,11 +25,11 @@ build:
 	cd frontend && npm run build
 	@echo "Building macOS app..."
 	$(PYTHON) -m PyInstaller aircode.spec --noconfirm --clean
-	@echo "Build complete: release/AirCode.app"
+	@echo "Build complete: dist/AirCode.app"
 
 clean:
 	rm -rf frontend/dist
-	rm -rf release
+	rm -rf dist
 	rm -rf build
 	rm -rf __pycache__
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
