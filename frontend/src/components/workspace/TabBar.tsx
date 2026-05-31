@@ -43,17 +43,17 @@ export function TabBar() {
   }
 
   return (
-    <div className="flex items-center border-b border-panel-border bg-panel-bg" style={{ height: 32 }}>
+    <div className="flex items-stretch border-b border-panel-border bg-panel-bg" style={{ height: 36 }}>
       {/* Tab items - grow to fill space */}
       <div className="flex flex-1 overflow-x-auto">
         {tabs.map((tab) => (
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`group flex h-full shrink-0 items-center gap-1.5 cursor-pointer border-r border-panel-border px-3 text-xs ${
+            className={`group flex h-full shrink-0 items-center gap-1.5 cursor-pointer border-r border-panel-border px-3 text-xs border-t-2 ${
               tab.id === activeTabId
-                ? "bg-panel-bg text-text-primary"
-                : "text-text-muted hover:bg-panel-hover hover:text-text-secondary"
+                ? "border-t-accent text-text-primary"
+                : "border-t-transparent text-text-muted hover:bg-panel-hover hover:text-text-secondary"
             }`}
           >
             <span className="shrink-0">{tab.icon}</span>
@@ -82,7 +82,7 @@ export function TabBar() {
         <button
           onClick={() => setShowMenu(!showMenu)}
           disabled={!activeProjectId}
-          className="flex items-center gap-1 border-l border-panel-border px-3 h-8 text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
+          className="flex items-center gap-1 border-l border-panel-border px-3 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
           title="新建标签"
         >
           <Plus size={14} />

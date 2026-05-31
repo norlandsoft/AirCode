@@ -11,13 +11,15 @@ export function Workspace() {
   const activeTabId = useTabStore((s) => s.activeTabId)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const ensureGitTab = useTabStore((s) => s.ensureGitTab)
+  const switchProject = useTabStore((s) => s.switchProject)
 
-  // When active project changes, ensure git tab exists
+  // When active project changes, restore its last active tab and ensure git tab exists
   useEffect(() => {
     if (activeProjectId) {
+      switchProject(activeProjectId)
       ensureGitTab(activeProjectId)
     }
-  }, [activeProjectId, ensureGitTab])
+  }, [activeProjectId, switchProject, ensureGitTab])
 
   // Filter tabs for current project
   const projectTabs = activeProjectId

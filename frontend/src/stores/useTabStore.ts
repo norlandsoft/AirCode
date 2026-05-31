@@ -5,6 +5,7 @@ import { useTerminalStore } from "@/stores/useTerminalStore"
 interface TabState {
   tabs: Tab[]
   activeTabId: string | null
+  projectActiveTabs: Record<string, string>
 
   addTab: (type: TabType, projectId: string, extra?: Partial<Tab>) => string
   removeTab: (id: string) => void
@@ -14,6 +15,7 @@ interface TabState {
   getRestorableTabs: () => Tab[]
   ensureGitTab: (projectId: string) => void
   getProjectTabs: (projectId: string) => Tab[]
+  switchProject: (projectId: string) => void
 }
 
 const TAB_ICONS: Record<TabType, string> = {
@@ -33,6 +35,7 @@ let tabCounter = 0
 export const useTabStore = create<TabState>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  projectActiveTabs: {},
 
   addTab: (type: TabType, projectId: string, extra?: Partial<Tab>) => {
     tabCounter++
@@ -63,7 +66,11 @@ export const useTabStore = create<TabState>((set, get) => ({
           newTabs = [...state.tabs, tab]
         }
       }
-      return { tabs: newTabs, activeTabId: id }
+      return {
+        tabs: newTabs,
+        activeTabId: id,
+        projectActiveTabs: { ...state.projectActiveTabs, [projectId]: id },
+      }
     })
 
     return id
@@ -85,12 +92,28 @@ export const useTabStore = create<TabState>((set, get) => ({
         state.activeTabId === id
           ? tabs[tabs.length - 1]?.id || null
           : state.activeTabId
-      return { tabs, activeTabId }
+      // Update per-project active tab if the fallback belongs to the same project
+      const projectActiveTabs = { ...state.projectActiveTabs }
+      if (state.activeTabId === id && activeTabId) {
+        const fallbackTab = tabs.find((t) => t.id === activeTabId)
+        if (fallbackTab) {
+          projectActiveTabs[fallbackTab.projectId] = activeTabId
+        }
+      }
+      if (!activeTabId && tab) {
+        delete projectActiveTabs[tab.projectId]
+      }
+      return { tabs, activeTabId, projectActiveTabs }
     })
   },
 
   setActiveTab: (id: string) => {
-    set({ activeTabId: id })
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return
+    set((state) => ({
+      activeTabId: id,
+      projectActiveTabs: { ...state.projectActiveTabs, [tab.projectId]: id },
+    }))
   },
 
   updateTab: (id: string, updates: Partial<Tab>) => {
@@ -118,5 +141,26 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   getProjectTabs: (projectId: string) => {
     return get().tabs.filter((t) => t.projectId === projectId)
+  },
+
+  switchProject: (projectId: string) => {
+    const state = get()
+
+    // Save current active tab for the old project
+    const currentTab = state.tabs.find((t) => t.id === state.activeTabId)
+    const projectActiveTabs = { ...state.projectActiveTabs }
+    if (currentTab) {
+      projectActiveTabs[currentTab.projectId] = state.activeTabId!
+    }
+
+    // Restore active tab for the new project, or fall back to first tab
+    const savedId = projectActiveTabs[projectId]
+    const projectTabs = state.tabs.filter((t) => t.projectId === projectId)
+    const activeTabId =
+      (savedId && projectTabs.some((t) => t.id === savedId))
+        ? savedId
+        : projectTabs[0]?.id || null
+
+    set({ activeTabId, projectActiveTabs })
   },
 }))
