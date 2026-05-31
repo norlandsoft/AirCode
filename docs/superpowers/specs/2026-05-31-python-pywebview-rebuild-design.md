@@ -49,6 +49,7 @@ aircode/
 │   │   ├── editor.py        # File read/write, search
 │   │   ├── terminal.py      # PTY management
 │   │   ├── project.py       # Project/workspace management
+│   │   ├── git.py           # Git operations (status, diff, commit, log, branch)
 │   │   └── ftp.py           # FTP operations (Phase 2)
 │   ├── modules/
 │   │   └── __init__.py      # Module registration mechanism
@@ -58,11 +59,11 @@ aircode/
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   ├── components/
-│   │   │   ├── layout/      # TitleBar, Sidebar, StatusBar
-│   │   │   ├── editor/      # Monaco editor wrapper
-│   │   │   ├── terminal/    # xterm.js wrapper
-│   │   │   ├── file-tree/   # File browser
-│   │   │   └── project/     # Project management UI
+│   │   │   ├── layout/      # TitleBar, StatusBar, ResizablePanel
+│   │   │   ├── project/     # ProjectList (left panel)
+│   │   │   ├── workspace/   # TabBar + tab content area
+│   │   │   ├── tabs/        # TerminalTab, EditorTab, FileViewerTab, GitTab
+│   │   │   └── common/      # Shared UI components
 │   │   ├── stores/          # zustand stores
 │   │   ├── modules/         # Module registry & types
 │   │   ├── lib/
@@ -90,6 +91,7 @@ class Api:
         self.editor = EditorApi()
         self.terminal = TerminalApi()
         self.project = ProjectApi()
+        self.git = GitApi()
 
     def get_platform(self) -> str: ...
     def get_app_info(self) -> dict: ...
@@ -145,46 +147,77 @@ Frontend can run independently with `npm run dev` for development, no Python req
 
 | Store | Responsibility |
 |-------|---------------|
-| `useProjectStore` | Current project path, project list |
-| `useEditorStore` | Open files, active tab, dirty state |
+| `useProjectStore` | Project list, current project (working directory) |
+| `useEditorStore` | Open files in editor tabs, dirty state |
 | `useTerminalStore` | Terminal sessions |
-| `useModuleStore` | Module registration, active module |
+| `useTabStore` | All open tabs (4 types), active tab, tab order |
 
 ### Module System
 
+Tab types replace the old module system. Each tab is one of four types:
+
 ```typescript
-interface AirCodeModule {
+type TabType = 'terminal' | 'editor' | 'file_viewer' | 'git'
+
+interface Tab {
   id: string
-  name: string
+  type: TabType
+  title: string
   icon: string
-  sidebarItem?: SidebarItemConfig
-  statusBarItems?: StatusBarItemConfig
-  component: React.ComponentType
+  projectId: string
+  // editor-specific
+  filePath?: string
+  isDirty?: boolean
+}
+
+interface TabStore {
+  tabs: Tab[]
+  activeTabId: string | null
+  addTab(tab: Tab): void
+  removeTab(id: string): void
+  setActiveTab(id: string): void
 }
 ```
 
-Modules register to store → auto-appear in sidebar + tab bar + status bar.
-
-Phase 1 modules: Editor, Terminal, FileTree, Project
-Phase 2 modules: FTP, Services, AI Agent
-
 ### Layout
 
+Left-right two-panel layout:
+
 ```
-┌─ TitleBar ─────────────────────────────────────┐
-│ [Project ▾]   [Tab1] [Tab2] [+]               │
-├──────┬─────────────────────────────────────────┤
-│      │                                         │
-│ Side │        Main Content Area                │
-│ bar  │   (Editor / Terminal / panel switch)     │
-│      │                                         │
-│ 📁   │                                         │
-│ 🖥️   │                                         │
-│ ⚙️   │                                         │
-├──────┴─────────────────────────────────────────┤
-│ StatusBar: [module status] [encoding] [pos]     │
-└────────────────────────────────────────────────┘
+┌─ TitleBar ───────────────────────────────────────────┐
+│  AirCode                                             │
+├────────────┬─────────────────────────────────────────┤
+│            │  [term] [main.py] [README.md] [git] [+] │
+│  Projects  ├─────────────────────────────────────────┤
+│            │                                         │
+│  📁 ~/code │   Active Tab Content                    │
+│  📁 ~/work │   (Terminal / Editor / FileViewer / Git)│
+│  📁 ~/docs │                                         │
+│            │                                         │
+│            │                                         │
+│  [+ Add]   │                                         │
+├────────────┴─────────────────────────────────────────┤
+│ StatusBar: [utf-8] [LF] [Python] [row:col]           │
+└──────────────────────────────────────────────────────┘
 ```
+
+**Left panel — Project List:**
+- Each project = a working directory on the local filesystem
+- Click a project to make it active; all new tabs default to this directory
+- Add/remove projects via folder picker
+- Project list persisted in localStorage
+- Shows project directory name as label, full path as tooltip
+
+**Right panel — Workspace with tabs:**
+- Tab bar at top, tab content below
+- 4 tab types, each with distinct icon and behavior:
+  - **Terminal** (🖥️): xterm.js instance with PTY in the project's working directory
+  - **Editor** (📝): Monaco Editor instance for a specific file; opened from project file tree or drag-drop
+  - **File Viewer** (📁): Read-only file preview (images, PDFs, large files); also provides file tree navigation within the project
+  - **Git** (🔀): Git operations UI — status, diff, commit, log, branch management
+- New tab button [+] opens a dropdown to select tab type
+- Tabs closeable with × button; editor tabs show dirty indicator
+- Tabs are scoped to the active project
 
 ### Styling
 
