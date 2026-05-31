@@ -20,12 +20,12 @@ dev:be:
 	@echo "Starting PyWebView backend..."
 	AIRCODE_DEV=1 $(PYTHON) backend/main.py
 
-build: setup
+build:
 	@echo "Building frontend..."
 	cd frontend && npm run build
-	@echo "Building executable..."
-	$(PYTHON) -m PyInstaller aircode.spec --noconfirm
-	@echo "Build complete: release/"
+	@echo "Building macOS app..."
+	$(PYTHON) -m PyInstaller aircode.spec --noconfirm --clean
+	@echo "Build complete: release/AirCode.app"
 
 clean:
 	rm -rf frontend/dist
