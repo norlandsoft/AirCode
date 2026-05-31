@@ -25,3 +25,6 @@ build/
 *.pem
 .env
 .env*.local
+
+# debug
+.playwright-mcp
