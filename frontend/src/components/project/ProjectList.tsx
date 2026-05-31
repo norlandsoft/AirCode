@@ -53,9 +53,9 @@ export function ProjectList({ width }: { width: number }) {
 
   return (
     <div className="flex h-full flex-col bg-panel-bg" style={{ width }}>
-      {/* Header - 32px height, 0.95rem font */}
-      <div className="flex items-center justify-between px-3 border-b border-panel-border" style={{ height: 32 }}>
-        <span className="text-[0.95rem] font-medium text-text-muted">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 border-b border-panel-border" style={{ height: 36 }}>
+        <span className="text-[0.9rem] font-medium text-text-muted">
           项目
         </span>
         <button
