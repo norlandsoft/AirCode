@@ -54,3 +54,60 @@ export interface TerminalSession {
   pid: number
   cwd: string
 }
+
+// ---- Settings / Storage types ----
+
+export interface TerminalSettings {
+  shell: string
+  fontSize: number
+}
+
+export interface EditorSettings {
+  tabSize: number
+  wordWrap: boolean
+  fontSize: number
+}
+
+export interface WindowSettings {
+  width: number
+  height: number
+}
+
+export interface AppSettings {
+  version: number
+  theme: string
+  fontSize: number
+  terminal: TerminalSettings
+  editor: EditorSettings
+  recentProjects: string[]
+  window: WindowSettings
+}
+
+export interface ProjectConfig {
+  path: string
+  name: string
+  gitUserName: string | null
+  gitUserEmail: string | null
+  ignorePatterns: string[]
+  editorOverrides: Partial<EditorSettings>
+}
+
+export interface WorkspaceTab {
+  id: string
+  type: TabType
+  filePath?: string
+  title: string
+}
+
+export interface WorkspaceData {
+  projectPath: string
+  activeTabId: string
+  tabs: WorkspaceTab[]
+  drafts: Record<string, string>
+}
+
+export interface Secrets {
+  gitTokens: Record<string, string>
+  sshKeyPath: string | null
+  customTokens: Record<string, string>
+}
