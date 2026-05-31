@@ -8,6 +8,7 @@ export interface Tab {
   projectId: string
   filePath?: string
   isDirty?: boolean
+  sessionId?: string
 }
 
 export interface Project {

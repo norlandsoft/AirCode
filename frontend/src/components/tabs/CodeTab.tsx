@@ -4,14 +4,14 @@ import Editor from "@monaco-editor/react"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { useTabStore } from "@/stores/useTabStore"
 import { useEditorStore } from "@/stores/useEditorStore"
-import type { FileEntry } from "@/lib/types"
+import type { FileEntry, Tab } from "@/lib/types"
 import { api } from "@/lib/api"
 
 interface CodeTabProps {
-  tabId: string
+  tab: Tab
 }
 
-export function CodeTab({ tabId }: CodeTabProps) {
+export function CodeTab({ tab }: CodeTabProps) {
   const fileTree = useProjectStore((s) => s.fileTree)
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId)
@@ -61,17 +61,17 @@ export function CodeTab({ tabId }: CodeTabProps) {
   const handleFileClick = useCallback(async (filePath: string, fileName: string) => {
     const file = await openFile(filePath)
     if (file) {
-      updateTab(tabId, { title: fileName, filePath })
+      updateTab(tab.id, { title: fileName, filePath })
     }
-  }, [openFile, updateTab, tabId])
+  }, [openFile, updateTab, tab.id])
 
   const handleChange = useCallback(
     (value: string | undefined) => {
       if (!activeFile || !value) return
       updateContent(activeFile.path, value)
-      updateTab(tabId, { isDirty: true })
+      updateTab(tab.id, { isDirty: true })
     },
-    [activeFile, tabId, updateContent, updateTab]
+    [activeFile, tab.id, updateContent, updateTab]
   )
 
   useEffect(() => {
@@ -80,14 +80,14 @@ export function CodeTab({ tabId }: CodeTabProps) {
         e.preventDefault()
         if (activeFile) {
           saveFile(activeFile.path).then((ok) => {
-            if (ok) updateTab(tabId, { isDirty: false })
+            if (ok) updateTab(tab.id, { isDirty: false })
           })
         }
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeFile, tabId, saveFile, updateTab])
+  }, [activeFile, tab.id, saveFile, updateTab])
 
   const renderTree = (entries: FileEntry[], depth: number = 0) => {
     return entries.map((entry) => {

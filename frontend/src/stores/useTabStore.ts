@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { Tab, TabType } from "@/lib/types"
+import { useTerminalStore } from "@/stores/useTerminalStore"
 
 interface TabState {
   tabs: Tab[]
@@ -12,6 +13,7 @@ interface TabState {
   getActiveTab: () => Tab | undefined
   getRestorableTabs: () => Tab[]
   ensureGitTab: (projectId: string) => void
+  getProjectTabs: (projectId: string) => Tab[]
 }
 
 const TAB_ICONS: Record<TabType, string> = {
@@ -68,10 +70,16 @@ export const useTabStore = create<TabState>((set, get) => ({
   },
 
   removeTab: (id: string) => {
+    const state = get()
+    const tab = state.tabs.find((t) => t.id === id)
+    // Git tab cannot be closed
+    if (tab?.type === "git") return
+    // Destroy terminal PTY session when explicitly closing a terminal tab
+    if (tab?.type === "terminal" && tab.sessionId) {
+      const { destroySession } = useTerminalStore.getState()
+      destroySession(tab.sessionId)
+    }
     set((state) => {
-      const tab = state.tabs.find((t) => t.id === id)
-      // Git tab cannot be closed
-      if (tab?.type === "git") return state
       const tabs = state.tabs.filter((t) => t.id !== id)
       const activeTabId =
         state.activeTabId === id
@@ -106,5 +114,9 @@ export const useTabStore = create<TabState>((set, get) => ({
     if (!hasGit) {
       get().addTab("git", projectId)
     }
+  },
+
+  getProjectTabs: (projectId: string) => {
+    return get().tabs.filter((t) => t.projectId === projectId)
   },
 }))

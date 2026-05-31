@@ -7,9 +7,8 @@ import { CodeTab } from "@/components/tabs/CodeTab"
 import { GitTab } from "@/components/tabs/GitTab"
 
 export function Workspace() {
-  const activeTab = useTabStore((s) =>
-    s.tabs.find((t) => t.id === s.activeTabId)
-  )
+  const tabs = useTabStore((s) => s.tabs)
+  const activeTabId = useTabStore((s) => s.activeTabId)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const ensureGitTab = useTabStore((s) => s.ensureGitTab)
 
@@ -19,6 +18,11 @@ export function Workspace() {
       ensureGitTab(activeProjectId)
     }
   }, [activeProjectId, ensureGitTab])
+
+  // Filter tabs for current project
+  const projectTabs = activeProjectId
+    ? tabs.filter((t) => t.projectId === activeProjectId)
+    : []
 
   if (!activeProjectId) {
     return (
@@ -33,21 +37,33 @@ export function Workspace() {
     )
   }
 
+  const hasActiveTab = projectTabs.some((t) => t.id === activeTabId)
+
   return (
     <div className="flex h-full flex-col">
       <TabBar />
-      <div className="flex-1 overflow-hidden">
-        {!activeTab && (
-          <div className="flex h-full items-center justify-center text-text-muted">
+      <div className="flex-1 relative">
+        {/* Empty state when no active tab */}
+        {!hasActiveTab && (
+          <div className="absolute inset-0 flex items-center justify-center text-text-muted">
             <div className="text-center">
               <p>点击 + 创建标签页</p>
               <p className="mt-1 text-xs">代码 / 终端</p>
             </div>
           </div>
         )}
-        {activeTab?.type === "terminal" && <TerminalTab tabId={activeTab.id} />}
-        {activeTab?.type === "code" && <CodeTab tabId={activeTab.id} />}
-        {activeTab?.type === "git" && <GitTab tabId={activeTab.id} />}
+        {/* Render all project tabs, hide inactive ones via CSS */}
+        {projectTabs.map((tab) => (
+          <div
+            key={tab.id}
+            className="absolute inset-0"
+            style={{ display: tab.id === activeTabId ? "block" : "none" }}
+          >
+            {tab.type === "terminal" && <TerminalTab tab={tab} />}
+            {tab.type === "code" && <CodeTab tab={tab} />}
+            {tab.type === "git" && <GitTab tab={tab} />}
+          </div>
+        ))}
       </div>
     </div>
   )

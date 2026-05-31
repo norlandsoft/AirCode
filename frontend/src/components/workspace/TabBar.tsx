@@ -10,12 +10,14 @@ const TAB_ADD_OPTIONS: { type: TabType; label: string; Icon: React.ComponentType
 ]
 
 export function TabBar() {
-  const tabs = useTabStore((s) => s.tabs)
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const tabs = useTabStore((s) =>
+    s.tabs.filter((t) => t.projectId === activeProjectId)
+  )
   const activeTabId = useTabStore((s) => s.activeTabId)
   const setActiveTab = useTabStore((s) => s.setActiveTab)
   const removeTab = useTabStore((s) => s.removeTab)
   const addTab = useTabStore((s) => s.addTab)
-  const activeProjectId = useProjectStore((s) => s.activeProjectId)
 
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)

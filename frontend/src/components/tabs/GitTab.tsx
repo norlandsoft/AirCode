@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from "react"
 import { GitCommit as GitCommitIcon, GitBranch, RefreshCw } from "lucide-react"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { api } from "@/lib/api"
-import type { GitCommit, GitFileStatus } from "@/lib/types"
+import type { GitCommit, GitFileStatus, Tab } from "@/lib/types"
 
 interface GitTabProps {
-  tabId: string
+  tab: Tab
 }
 
-export function GitTab({ tabId: _tabId }: GitTabProps) {
+export function GitTab({ tab: _tab }: GitTabProps) {
   const activeProject = useProjectStore((s) =>
     s.projects.find((p) => p.id === s.activeProjectId)
   )

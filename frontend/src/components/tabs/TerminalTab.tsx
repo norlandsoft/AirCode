@@ -5,12 +5,13 @@ import "@xterm/xterm/css/xterm.css"
 import { useTerminalStore } from "@/stores/useTerminalStore"
 import { useTabStore } from "@/stores/useTabStore"
 import { useProjectStore } from "@/stores/useProjectStore"
+import type { Tab } from "@/lib/types"
 
 interface TerminalTabProps {
-  tabId: string
+  tab: Tab
 }
 
-export function TerminalTab({ tabId }: TerminalTabProps) {
+export function TerminalTab({ tab }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initDone = useRef(false)
 
@@ -27,14 +28,7 @@ export function TerminalTab({ tabId }: TerminalTabProps) {
     s.projects.find((p) => p.id === s.activeProjectId)
   )
 
-  // Find existing session for this tab (stored in tab title pattern "终端: xxx")
-  const existingSessionId = useTabStore((s) => {
-    const tab = s.tabs.find((t) => t.id === tabId)
-    const title = tab?.title || ""
-    const match = title.match(/^终端:\s*(.+)$/)
-    const id = match ? `term_${match[1]}` : null
-    return id && useTerminalStore.getState().sessions.has(id) ? id : null
-  })
+  const existingSessionId = tab.sessionId || null
 
   useEffect(() => {
     if (!containerRef.current || initDone.current) return
@@ -49,7 +43,10 @@ export function TerminalTab({ tabId }: TerminalTabProps) {
         const session = await createSession(cwd)
         if (!session) return
         sessionId = session.id
-        updateTab(tabId, { title: `终端: ${session.id.replace("term_", "")}` })
+        updateTab(tab.id, {
+          title: `终端: ${session.id.replace("term_", "")}`,
+          sessionId: session.id,
+        })
       }
 
       // Check if terminal instance already exists in store
