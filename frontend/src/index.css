@@ -170,6 +170,20 @@ html, body, #root {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Fix xterm.js rendering conflicts with Tailwind preflight */
+.xterm,
+.xterm * {
+  box-sizing: content-box !important;
+  line-height: normal !important;
+  letter-spacing: 0 !important;
+  font-family: "SF Mono", Menlo, Monaco, monospace !important;
+  font-variant-ligatures: none !important;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
