@@ -10,6 +10,7 @@ interface TabState {
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
   getActiveTab: () => Tab | undefined
+  getRestorableTabs: () => Tab[]
 }
 
 const TAB_ICONS: Record<TabType, string> = {
@@ -76,5 +77,9 @@ export const useTabStore = create<TabState>((set, get) => ({
   getActiveTab: () => {
     const { tabs, activeTabId } = get()
     return tabs.find((t) => t.id === activeTabId)
+  },
+
+  getRestorableTabs: () => {
+    return get().tabs.filter((t) => t.type !== "terminal")
   },
 }))

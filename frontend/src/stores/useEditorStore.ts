@@ -10,6 +10,7 @@ interface EditorState {
   saveFile: (filePath: string) => Promise<boolean>
   updateContent: (filePath: string, content: string) => void
   closeFile: (filePath: string) => void
+  getDirtyDrafts: () => Record<string, string>
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -87,5 +88,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activeFile: state.activeFile?.path === filePath ? null : state.activeFile,
       }
     })
+  },
+
+  getDirtyDrafts: () => {
+    const drafts: Record<string, string> = {}
+    get().files.forEach((file) => {
+      if (file.isDirty) {
+        drafts[file.path] = file.content
+      }
+    })
+    return drafts
   },
 }))
