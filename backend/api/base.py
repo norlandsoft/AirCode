@@ -18,11 +18,13 @@ class Api:
         from .terminal import TerminalApi
         from .git import GitApi
         from .settings import SettingsApi
+        from .pipeline import PipelineApi
         self.project = ProjectApi(self)
         self.editor = EditorApi(self)
         self.terminal = TerminalApi(self)
         self.git = GitApi(self)
         self.settings = SettingsApi()
+        self.pipeline = PipelineApi(self)
 
     def set_window(self, window: webview.Window) -> None:
         self._window = window
