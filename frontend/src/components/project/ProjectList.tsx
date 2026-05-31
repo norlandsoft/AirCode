@@ -46,7 +46,7 @@ export function ProjectList() {
           <div
             key={project.id}
             onClick={() => setActiveProject(project.id)}
-            className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm ${
+            className={`group flex items-center gap-2 px-3 py-1.5 cursor-pointer text-[0.95rem] ${
               project.id === activeProjectId
                 ? "bg-panel-active text-text-primary"
                 : "text-text-secondary hover:bg-panel-hover hover:text-text-primary"
@@ -56,7 +56,7 @@ export function ProjectList() {
             <FolderOpen size={14} className="shrink-0 text-accent" />
             <span className="truncate flex-1">{project.name}</span>
             {project.isGitRepo && (
-              <span className="text-[10px] text-text-muted">git</span>
+              <span className="text-[0.625rem] text-text-muted">git</span>
             )}
             <button
               onClick={(e) => {

@@ -1,4 +1,4 @@
-.PHONY: dev dev:fe dev:be build clean setup
+.PHONY: dev dev-fe dev-be build clean setup
 
 PYTHON := .venv/aircode/bin/python
 PIP    := .venv/aircode/bin/pip
@@ -9,14 +9,14 @@ setup:
 
 dev: setup
 	@echo "Starting development environment..."
-	$(MAKE) dev:fe &
-	$(MAKE) dev:be
+	$(MAKE) dev-fe &
+	$(MAKE) dev-be
 
-dev:fe:
+dev-fe:
 	@echo "Starting frontend dev server..."
 	cd frontend && npm run dev
 
-dev:be:
+dev-be:
 	@echo "Starting PyWebView backend..."
 	AIRCODE_DEV=1 $(PYTHON) backend/main.py
 

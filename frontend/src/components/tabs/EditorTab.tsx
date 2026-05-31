@@ -67,7 +67,7 @@ export function EditorTab({ tabId, filePath }: EditorTabProps) {
       onChange={handleChange}
       theme="vs-dark"
       options={{
-        fontSize: 13,
+        fontSize: 14,
         fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

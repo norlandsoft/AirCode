@@ -42,7 +42,7 @@ export function TerminalTab({ tabId }: TerminalTabProps) {
         selectionBackground: "#45475a",
       },
       fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
+      fontSize: 14,
       cursorBlink: true,
       scrollback: 5000,
     })

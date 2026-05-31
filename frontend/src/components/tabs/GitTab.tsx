@@ -92,7 +92,7 @@ export function GitTab({ tabId: _tabId }: GitTabProps) {
         <div className="flex-1 overflow-y-auto p-2">
           {(unstaged.length > 0 || untracked.length > 0) && (
             <div className="mb-3">
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-text-muted">
+              <div className="mb-1 text-[0.625rem] font-medium uppercase tracking-wider text-text-muted">
                 更改 ({unstaged.length + untracked.length})
               </div>
               {[...unstaged.map((f) => ({ path: f.path, status: f.status })),
@@ -118,7 +118,7 @@ export function GitTab({ tabId: _tabId }: GitTabProps) {
 
           {staged.length > 0 && (
             <div className="mb-3">
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-text-muted">
+              <div className="mb-1 text-[0.625rem] font-medium uppercase tracking-wider text-text-muted">
                 暂存 ({staged.length})
               </div>
               {staged.map((f) => (
@@ -131,7 +131,7 @@ export function GitTab({ tabId: _tabId }: GitTabProps) {
           )}
 
           <div>
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-text-muted">
+            <div className="mb-1 text-[0.625rem] font-medium uppercase tracking-wider text-text-muted">
               最近提交
             </div>
             {commits.map((c) => (

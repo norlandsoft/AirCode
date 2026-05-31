@@ -1,13 +1,20 @@
+import functools
+import http.server
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 
 import webview
 
-# Add project root to Python path
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Resolve base path: PyInstaller bundle vs. source tree
+if getattr(sys, "frozen", False):
+    BASE_PATH = Path(sys._MEIPASS)
+else:
+    BASE_PATH = Path(__file__).parent.parent
+
+sys.path.insert(0, str(BASE_PATH))
 
 from backend.api import Api
 
@@ -20,10 +27,25 @@ logger = logging.getLogger(__name__)
 DEV_MODE = os.environ.get("AIRCODE_DEV") == "1"
 
 
+def start_static_server(directory: str, port: int = 0) -> int:
+    """Start a local HTTP server to serve frontend static files."""
+    handler = functools.partial(
+        http.server.SimpleHTTPRequestHandler, directory=directory
+    )
+    server = http.server.HTTPServer(("127.0.0.1", port), handler)
+    actual_port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return actual_port
+
+
 def get_frontend_url() -> str:
     if DEV_MODE:
         return "http://localhost:5173"
-    return str(PROJECT_ROOT / "frontend" / "dist" / "index.html")
+    dist_dir = str(BASE_PATH / "frontend" / "dist")
+    port = start_static_server(dist_dir)
+    logger.info("Static file server started on port %d", port)
+    return f"http://127.0.0.1:{port}"
 
 
 def main() -> None:
