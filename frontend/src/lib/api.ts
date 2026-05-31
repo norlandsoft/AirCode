@@ -41,6 +41,16 @@ declare global {
           checkout(project_path: string, branch: string): Promise<ApiResponse>
           init(project_path: string): Promise<ApiResponse>
         }
+        settings: {
+          get_settings(): Promise<ApiResponse>
+          update_settings(values: Record<string, unknown>): Promise<ApiResponse>
+          get_project_config(project_path: string): Promise<ApiResponse>
+          update_project_config(project_path: string, values: Record<string, unknown>): Promise<ApiResponse>
+          get_workspace(project_path: string): Promise<ApiResponse>
+          save_workspace(project_path: string, data: Record<string, unknown>): Promise<ApiResponse>
+          get_secrets(): Promise<ApiResponse>
+          update_secrets(values: Record<string, unknown>): Promise<ApiResponse>
+        }
       }
     }
     __aircode_on_terminal_output?: (id: string, data: string) => void
@@ -114,6 +124,35 @@ const mockApi = {
     }),
     checkout: async () => ({ output: "" }),
     init: async () => ({ output: "Initialized empty Git repository" }),
+  },
+  settings: {
+    get_settings: async () => ({
+      version: 1,
+      theme: "dark",
+      fontSize: 16,
+      terminal: { shell: "/bin/zsh", fontSize: 14 },
+      editor: { tabSize: 2, wordWrap: true, fontSize: 14 },
+      recentProjects: [],
+      window: { width: 1400, height: 900 },
+    }),
+    update_settings: async () => ({ success: true }),
+    get_project_config: async () => ({
+      path: "",
+      name: "",
+      gitUserName: null,
+      gitUserEmail: null,
+      ignorePatterns: ["node_modules", ".git", "dist"],
+      editorOverrides: {},
+    }),
+    update_project_config: async () => ({ success: true }),
+    get_workspace: async () => ({}),
+    save_workspace: async () => ({ success: true }),
+    get_secrets: async () => ({
+      gitTokens: {},
+      sshKeyPath: null,
+      customTokens: {},
+    }),
+    update_secrets: async () => ({ success: true }),
   },
 }
 
