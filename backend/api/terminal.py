@@ -1,3 +1,4 @@
+import codecs
 import fcntl
 import logging
 import os
@@ -63,6 +64,7 @@ class TerminalApi:
                     "master_fd": master_fd,
                     "shell": shell,
                     "cwd": str(work_dir),
+                    "decoder": codecs.getincrementaldecoder("utf-8")("replace"),
                 }
 
                 reader = threading.Thread(
@@ -131,18 +133,17 @@ class TerminalApi:
             return
 
         master_fd = session["master_fd"]
-        buf = b""
+        decoder = session["decoder"]
 
         while session_id in self._sessions:
             try:
                 data = os.read(master_fd, 4096)
                 if not data:
                     break
-                buf += data
-
-                text = buf.decode("utf-8", errors="replace")
-                buf = b""
-                self._push_output(session_id, text)
+                # Incremental decoder handles multi-byte UTF-8 split across reads
+                text = decoder.decode(data, final=False)
+                if text:
+                    self._push_output(session_id, text)
 
             except BlockingIOError:
                 time.sleep(0.01)
