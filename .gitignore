@@ -28,3 +28,4 @@ build/
 
 # debug
 .playwright-mcp
+.superpowers
