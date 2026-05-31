@@ -1,11 +1,48 @@
 import { useState, useEffect, useCallback } from "react"
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from "lucide-react"
-import Editor from "@monaco-editor/react"
+import Editor, { type OnMount } from "@monaco-editor/react"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { useTabStore } from "@/stores/useTabStore"
 import { useEditorStore } from "@/stores/useEditorStore"
 import type { FileEntry, Tab } from "@/lib/types"
 import { api } from "@/lib/api"
+
+// Track if custom theme has been registered
+let themeRegistered = false
+
+/** Register a light theme with guaranteed dark code colors */
+function registerCustomTheme(monaco: Parameters<OnMount>[1]) {
+  if (themeRegistered) return
+  themeRegistered = true
+  monaco.editor.defineTheme("aircode-light", {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "", foreground: "1a1b2e" },
+      { token: "comment", foreground: "6a737d" },
+      { token: "keyword", foreground: "d73a49" },
+      { token: "string", foreground: "032f62" },
+      { token: "number", foreground: "005cc5" },
+      { token: "type", foreground: "6f42c1" },
+      { token: "function", foreground: "6f42c1" },
+      { token: "variable", foreground: "1a1b2e" },
+      { token: "operator", foreground: "d73a49" },
+      { token: "delimiter", foreground: "1a1b2e" },
+      { token: "tag", foreground: "22863a" },
+      { token: "attribute.name", foreground: "6f42c1" },
+      { token: "attribute.value", foreground: "032f62" },
+    ],
+    colors: {
+      "editor.foreground": "#1a1b2e",
+      "editor.background": "#ffffff",
+      "editor.lineHighlightBackground": "#f0f1f4",
+      "editorLineNumber.foreground": "#8b8da3",
+      "editorLineNumber.activeForeground": "#1a1b2e",
+      "editor.selectionBackground": "#cce0ff",
+      "editor.inactiveSelectionBackground": "#e8effc",
+    },
+  })
+}
 
 interface CodeTabProps {
   tab: Tab
@@ -127,6 +164,11 @@ export function CodeTab({ tab }: CodeTabProps) {
     })
   }
 
+  const handleEditorMount: OnMount = (_editor, monaco) => {
+    registerCustomTheme(monaco)
+    monaco.editor.setTheme("aircode-light")
+  }
+
   return (
     <div className="flex h-full">
       <div className="w-64 overflow-y-auto border-r border-panel-border p-1">
@@ -141,7 +183,8 @@ export function CodeTab({ tab }: CodeTabProps) {
             language={activeFile.language}
             value={activeFile.content}
             onChange={handleChange}
-            theme="vs"
+            onMount={handleEditorMount}
+            theme="aircode-light"
             options={{
               fontSize: 14,
               fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
