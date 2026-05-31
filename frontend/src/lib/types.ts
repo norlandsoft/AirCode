@@ -1,4 +1,4 @@
-export type TabType = "terminal" | "code" | "git"
+export type TabType = "terminal" | "code" | "git" | "pipeline"
 
 export interface Tab {
   id: string
@@ -111,4 +111,39 @@ export interface Secrets {
   gitTokens: Record<string, string>
   sshKeyPath: string | null
   customTokens: Record<string, string>
+}
+
+export interface PipelineNode {
+  id: string
+  name: string
+  command: string
+  workDir?: string
+  env?: Record<string, string>
+}
+
+export interface Pipeline {
+  id: string
+  name: string
+  projectId: string
+  nodes: PipelineNode[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface NodeRun {
+  nodeId: string
+  status: "pending" | "running" | "success" | "failed" | "skipped"
+  exitCode?: number
+  output: string
+  startedAt?: number
+  finishedAt?: number
+}
+
+export interface PipelineRun {
+  id: string
+  pipelineId: string
+  status: "running" | "success" | "failed" | "cancelled"
+  startedAt: number
+  finishedAt?: number
+  nodeRuns: NodeRun[]
 }
