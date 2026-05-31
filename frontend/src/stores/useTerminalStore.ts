@@ -82,11 +82,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     if (entry?.term) {
       entry.term.write(data)
     }
-    // Always buffer for replay
+    // Always buffer for replay, but cap to prevent unbounded memory growth.
+    // Keep last ~500KB which is enough for meaningful replay context.
+    const MAX_BUFFER_SIZE = 500_000
     set((state) => {
       const outputBuffers = new Map(state.outputBuffers)
-      const existing = outputBuffers.get(id) || ""
-      outputBuffers.set(id, existing + data)
+      let buf = (outputBuffers.get(id) || "") + data
+      if (buf.length > MAX_BUFFER_SIZE) {
+        buf = buf.slice(buf.length - MAX_BUFFER_SIZE)
+      }
+      outputBuffers.set(id, buf)
       return { outputBuffers }
     })
   },

@@ -50,9 +50,9 @@ export function TabBar() {
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`group flex h-full shrink-0 items-center gap-1.5 cursor-pointer border-r border-panel-border px-3 text-xs border-t-2 ${
+            className={`group flex h-full shrink-0 items-center gap-1.5 cursor-pointer border-r border-panel-border px-3 text-xs border-t-[3px] ${
               tab.id === activeTabId
-                ? "border-t-accent text-text-primary"
+                ? "border-t-blue-500 text-text-primary"
                 : "border-t-transparent text-text-muted hover:bg-panel-hover hover:text-text-secondary"
             }`}
           >

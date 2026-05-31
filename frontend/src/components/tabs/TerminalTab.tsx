@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
+import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { useTerminalStore } from "@/stores/useTerminalStore"
 import { useTabStore } from "@/stores/useTabStore"
@@ -66,16 +67,57 @@ export function TerminalTab({ tab }: TerminalTabProps) {
           background: "#ffffff",
           foreground: "#1a1b2e",
           cursor: "#4a7dfc",
-          selectionBackground: "#e4e6eb",
+          cursorAccent: "#ffffff",
+          selectionBackground: "#b3d4fc",
+          selectionForeground: "#1a1b2e",
+          selectionInactiveBackground: "#d4d9e8",
+          // ANSI standard colors — tuned for white background readability
+          black: "#1a1b2e",
+          red: "#d1243f",
+          green: "#1a7f37",
+          yellow: "#9a6700",
+          blue: "#4a7dfc",
+          magenta: "#a855f7",
+          cyan: "#0550ae",
+          white: "#656d76",
+          // ANSI bright colors
+          brightBlack: "#424a53",
+          brightRed: "#cf222e",
+          brightGreen: "#116329",
+          brightYellow: "#8a6914",
+          brightBlue: "#3b72f2",
+          brightMagenta: "#9340d6",
+          brightCyan: "#0969da",
+          brightWhite: "#8b949e",
+          // Scrollbar colors
+          scrollbarSliderBackground: "#c8ccd4",
+          scrollbarSliderHoverBackground: "#a0a6b2",
+          scrollbarSliderActiveBackground: "#8b949e",
         },
-        fontFamily: '"SF Mono", Menlo, Monaco, "Courier New", monospace',
-        fontSize: 14,
+        // Use monospace fonts optimized for terminal display.
+        // Avoid "Courier New" — not a true monospace in all environments.
+        fontFamily: '"SF Mono", Menlo, Monaco, monospace',
+        fontSize: 13,
+        lineHeight: 1.2,
+        letterSpacing: 0,
         cursorBlink: true,
+        cursorStyle: "bar",
+        cursorInactiveStyle: "outline",
+        macOptionIsMeta: true,
+        rightClickSelectsWord: true,
         scrollback: 5000,
+        scrollSensitivity: 1,
+        fastScrollSensitivity: 5,
+        minimumContrastRatio: 1,
+        allowTransparency: false,
+        customGlyphs: true,
+        rescaleOverlappingGlyphs: true,
       })
 
       const fitAddon = new FitAddon()
+      const webLinksAddon = new WebLinksAddon()
       term.loadAddon(fitAddon)
+      term.loadAddon(webLinksAddon)
       term.open(containerRef.current!)
       fitAddon.fit()
 
