@@ -51,9 +51,17 @@ declare global {
           get_secrets(): Promise<ApiResponse>
           update_secrets(values: Record<string, unknown>): Promise<ApiResponse>
         }
+        pipeline: {
+          get_pipeline(project_path: string): Promise<ApiResponse>
+          save_pipeline(project_path: string, pipeline: Record<string, unknown>): Promise<ApiResponse>
+          run_pipeline(project_path: string): Promise<ApiResponse>
+          stop_pipeline(run_id: string): Promise<ApiResponse>
+          get_run_status(run_id: string): Promise<ApiResponse>
+        }
       }
     }
     __aircode_on_terminal_output?: (id: string, data: string) => void
+    __aircode_on_pipeline_event?: (runId: string, event: { type: string; nodeId: string; status?: string; data?: string }) => void
   }
 }
 
@@ -153,6 +161,22 @@ const mockApi = {
       customTokens: {},
     }),
     update_secrets: async () => ({ success: true }),
+  },
+  pipeline: {
+    get_pipeline: async () => ({ pipeline: null }),
+    save_pipeline: async () => ({ success: true }),
+    run_pipeline: async () => ({ run_id: "run_mock_123" }),
+    stop_pipeline: async () => ({ success: true }),
+    get_run_status: async () => ({
+      run: {
+        id: "run_mock_123",
+        pipelineId: "pipeline_mock",
+        status: "success",
+        startedAt: Date.now() / 1000 - 5,
+        finishedAt: Date.now() / 1000,
+        nodeRuns: [],
+      },
+    }),
   },
 }
 
