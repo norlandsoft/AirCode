@@ -1,5 +1,7 @@
 # AirCode - CLAUDE.md
 
+- 使用中文回答所有问题
+
 ## Project Overview
 
 AirCode is a local Mac desktop development workstation built with Python + PyWebView + React + TypeScript. It integrates code editing, terminal, file management, and Git operations into a single-window two-panel interface.
@@ -94,6 +96,7 @@ frontend/
 - Code and comments in English; user-facing UI strings in Chinese
 - Method naming follows `{module}:{action}` pattern
 - Security: never execute unverified user input, never concatenate shell commands
+- Git 提交信息中不要添加 Co-Authored-By 内容
 - Frontend can run independently with mock API for development
 - Python runs in `.venv/aircode` virtual environment
 

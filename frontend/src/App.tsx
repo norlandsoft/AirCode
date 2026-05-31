@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { TitleBar } from "@/components/layout/TitleBar"
 import { StatusBar } from "@/components/layout/StatusBar"
 import { ProjectList } from "@/components/project/ProjectList"
@@ -8,6 +8,10 @@ import { useTabStore } from "@/stores/useTabStore"
 import { useEditorStore } from "@/stores/useEditorStore"
 import { useSettingsStore } from "@/stores/useSettingsStore"
 
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 400
+const SIDEBAR_DEFAULT = 224
+
 export default function App() {
   const loadFromStorage = useProjectStore((s) => s.loadFromStorage)
   const addTab = useTabStore((s) => s.addTab)
@@ -16,6 +20,38 @@ export default function App() {
   const updateContent = useEditorStore((s) => s.updateContent)
   const loadWorkspace = useSettingsStore((s) => s.loadWorkspace)
   const saveWorkspace = useSettingsStore((s) => s.saveWorkspace)
+
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
+  const isDragging = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+  }, [])
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return
+      const newWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, e.clientX))
+      setSidebarWidth(newWidth)
+    }
+    const onMouseUp = () => {
+      if (!isDragging.current) return
+      isDragging.current = false
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+    }
+
+    document.addEventListener("mousemove", onMouseMove)
+    document.addEventListener("mouseup", onMouseUp)
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove)
+      document.removeEventListener("mouseup", onMouseUp)
+    }
+  }, [])
 
   // Load projects and restore workspace on mount
   useEffect(() => {
@@ -82,9 +118,17 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col">
       <TitleBar />
-      <div className="flex flex-1 overflow-hidden">
-        <ProjectList />
-        <Workspace />
+      <div ref={containerRef} className="flex flex-1 overflow-hidden">
+        <ProjectList width={sidebarWidth} />
+        {/* Resize handle */}
+        <div
+          onMouseDown={onMouseDown}
+          className="shrink-0 cursor-col-resize bg-panel-border transition-colors hover:bg-accent active:bg-accent"
+          style={{ width: 4 }}
+        />
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <Workspace />
+        </div>
       </div>
       <StatusBar />
     </div>

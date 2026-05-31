@@ -1,28 +1,58 @@
-import { FolderOpen, Plus, Trash2 } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { FolderOpen, Plus, Trash2, Pencil } from "lucide-react"
 import { useProjectStore } from "@/stores/useProjectStore"
-import { api, isPyWebView } from "@/lib/api"
+import { api } from "@/lib/api"
 
-export function ProjectList() {
+export function ProjectList({ width }: { width: number }) {
   const projects = useProjectStore((s) => s.projects)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const removeProject = useProjectStore((s) => s.removeProject)
+  const renameProject = useProjectStore((s) => s.renameProject)
   const addProject = useProjectStore((s) => s.addProject)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingId])
+
   const handleAddProject = async () => {
-    if (isPyWebView) {
-      const a = await api()
-      const result = await a.open_folder_dialog()
-      if (result.path) {
-        addProject(result.path as string)
-      }
-    } else {
-      addProject("/tmp")
+    const a = await api()
+    const result = await a.open_folder_dialog()
+    if (result.path) {
+      addProject(result.path as string)
+    }
+  }
+
+  const startRename = (e: React.MouseEvent, id: string, currentName: string) => {
+    e.stopPropagation()
+    setEditingId(id)
+    setEditValue(currentName)
+  }
+
+  const commitRename = () => {
+    if (editingId && editValue.trim()) {
+      renameProject(editingId, editValue.trim())
+    }
+    setEditingId(null)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      commitRename()
+    } else if (e.key === "Escape") {
+      setEditingId(null)
     }
   }
 
   return (
-    <div className="flex h-full w-56 flex-col border-r border-panel-border bg-panel-bg">
+    <div className="flex h-full flex-col bg-panel-bg" style={{ width }}>
       <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border">
         <span className="text-xs font-medium uppercase tracking-wider text-text-muted">
           项目
@@ -54,20 +84,41 @@ export function ProjectList() {
             title={project.path}
           >
             <FolderOpen size={14} className="shrink-0 text-accent" />
-            <span className="truncate flex-1">{project.name}</span>
+            {editingId === project.id ? (
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={handleKeyDown}
+                className="flex-1 min-w-0 rounded bg-panel-bg border border-accent px-1 py-0 text-[0.95rem] text-text-primary outline-none"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="truncate flex-1">{project.name}</span>
+            )}
             {project.isGitRepo && (
               <span className="text-[0.625rem] text-text-muted">git</span>
             )}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                removeProject(project.id)
-              }}
-              className="hidden rounded p-0.5 text-text-muted hover:text-danger group-hover:block"
-              title="移除项目"
-            >
-              <Trash2 size={12} />
-            </button>
+            <div className="hidden items-center gap-0.5 group-hover:flex">
+              <button
+                onClick={(e) => startRename(e, project.id, project.name)}
+                className="rounded p-0.5 text-text-muted hover:text-accent"
+                title="重命名"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeProject(project.id)
+                }}
+                className="rounded p-0.5 text-text-muted hover:text-danger"
+                title="移除项目"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
           </div>
         ))}
       </div>

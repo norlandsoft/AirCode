@@ -10,6 +10,7 @@ interface ProjectState {
 
   addProject: (path: string) => Promise<void>
   removeProject: (id: string) => void
+  renameProject: (id: string, name: string) => void
   setActiveProject: (id: string) => void
   loadFileTree: (dirPath: string) => Promise<void>
   loadFromStorage: () => Promise<void>
@@ -57,6 +58,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           : state.activeProjectId
       return { projects, activeProjectId }
     })
+    get()._saveToBackend()
+  },
+
+  renameProject: (id: string, name: string) => {
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, name } : p
+      ),
+    }))
     get()._saveToBackend()
   },
 
