@@ -48,6 +48,7 @@ class TerminalApi:
                     os.close(slave_fd)
 
                 os.chdir(work_dir)
+                os.environ["TERM"] = "xterm-256color"
                 os.execvp(shell, [shell, "-l"])
             else:
                 # Parent process
