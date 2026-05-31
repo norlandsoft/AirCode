@@ -22,12 +22,14 @@ const TAB_ICONS: Record<TabType, string> = {
   terminal: "🖥️",
   code: "📝",
   git: "🔀",
+  pipeline: "⚡",
 }
 
 const TAB_TITLES: Record<TabType, string> = {
   terminal: "终端",
   code: "代码",
   git: "Git",
+  pipeline: "流水线",
 }
 
 let tabCounter = 0

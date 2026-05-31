@@ -1,13 +1,7 @@
-import { Plus, X, Terminal, FolderTree } from "lucide-react"
+import { X, Terminal, FolderTree, Zap } from "lucide-react"
 import { useTabStore } from "@/stores/useTabStore"
 import { useProjectStore } from "@/stores/useProjectStore"
-import type { TabType } from "@/lib/types"
-import { useState, useRef, useEffect } from "react"
-
-const TAB_ADD_OPTIONS: { type: TabType; label: string; Icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
-  { type: "code", label: "代码", Icon: FolderTree },
-  { type: "terminal", label: "终端", Icon: Terminal },
-]
+import { useCallback } from "react"
 
 export function TabBar() {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
@@ -22,25 +16,13 @@ export function TabBar() {
     ? allTabs.filter((t) => t.projectId === activeProjectId)
     : []
 
-  const [showMenu, setShowMenu] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!showMenu) return
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [showMenu])
-
-  const handleAddTab = (type: TabType) => {
-    if (!activeProjectId) return
-    addTab(type, activeProjectId)
-    setShowMenu(false)
-  }
+  const handleAddTab = useCallback(
+    (type: "code" | "terminal" | "pipeline") => {
+      if (!activeProjectId) return
+      addTab(type, activeProjectId)
+    },
+    [activeProjectId, addTab]
+  )
 
   return (
     <div className="flex items-stretch border-b border-panel-border bg-panel-bg" style={{ height: 36 }}>
@@ -77,31 +59,31 @@ export function TabBar() {
         ))}
       </div>
 
-      {/* Add button - pinned to the right */}
-      <div className="relative shrink-0" ref={menuRef}>
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          disabled={!activeProjectId}
-          className="flex items-center gap-1 border-l border-panel-border px-3 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
-          title="新建标签"
-        >
-          <Plus size={14} />
-        </button>
-        {showMenu && (
-          <div className="absolute right-0 top-full z-50 mt-1 w-32 rounded border border-panel-border bg-panel-bg py-1 shadow-lg">
-            {TAB_ADD_OPTIONS.map(({ type, label, Icon }) => (
-              <button
-                key={type}
-                onClick={() => handleAddTab(type)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-text-secondary hover:bg-panel-hover hover:text-text-primary"
-              >
-                <Icon size={14} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Add buttons - pinned to the right */}
+      <button
+        onClick={() => handleAddTab("code")}
+        disabled={!activeProjectId}
+        className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
+        title="新建代码标签"
+      >
+        <FolderTree size={14} />
+      </button>
+      <button
+        onClick={() => handleAddTab("terminal")}
+        disabled={!activeProjectId}
+        className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
+        title="新建终端标签"
+      >
+        <Terminal size={14} />
+      </button>
+      <button
+        onClick={() => handleAddTab("pipeline")}
+        disabled={!activeProjectId}
+        className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
+        title="新建流水线标签"
+      >
+        <Zap size={14} />
+      </button>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { useProjectStore } from "@/stores/useProjectStore"
 import { TerminalTab } from "@/components/tabs/TerminalTab"
 import { CodeTab } from "@/components/tabs/CodeTab"
 import { GitTab } from "@/components/tabs/GitTab"
+import { PipelineTab } from "@/components/tabs/PipelineTab"
 
 export function Workspace() {
   const tabs = useTabStore((s) => s.tabs)
@@ -57,6 +58,7 @@ export function Workspace() {
                 {tab.type === "terminal" && <TerminalTab tab={tab} />}
                 {tab.type === "code" && <CodeTab tab={tab} />}
                 {tab.type === "git" && <GitTab tab={tab} />}
+                {tab.type === "pipeline" && <PipelineTab tab={tab} />}
               </div>
             ))}
           </div>
