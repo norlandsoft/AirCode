@@ -29,6 +29,7 @@ export function TerminalTab({ tab }: TerminalTabProps) {
   )
 
   const existingSessionId = tab.sessionId || null
+  const activeTabId = useTabStore((s) => s.activeTabId)
 
   useEffect(() => {
     if (!containerRef.current || initDone.current) return
@@ -92,6 +93,8 @@ export function TerminalTab({ tab }: TerminalTabProps) {
 
       // Handle resize
       const onResize = () => {
+        // Skip when container is hidden (display: none) — zero dimensions would corrupt xterm state
+        if (!containerRef.current || containerRef.current.offsetWidth === 0) return
         fitAddon.fit()
         if (sessionId) {
           resizeSession(sessionId, term.cols, term.rows)
@@ -111,6 +114,20 @@ export function TerminalTab({ tab }: TerminalTabProps) {
 
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refit terminal when this tab becomes active again
+  useEffect(() => {
+    if (tab.id !== activeTabId || !tab.sessionId || !containerRef.current) return
+    const entry = useTerminalStore.getState().terminals.get(tab.sessionId)
+    if (!entry) return
+    // Delay to ensure layout is complete after display change
+    const raf = requestAnimationFrame(() => {
+      if (containerRef.current && containerRef.current.offsetWidth > 0) {
+        entry.fitAddon.fit()
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [activeTabId, tab.id, tab.sessionId])
 
   return <div ref={containerRef} className="h-full w-full" />
 }
