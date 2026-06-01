@@ -13,8 +13,10 @@ interface GitState {
   diffContent: string
   diffTitle: string
   activeTab: "changes" | "history"
-  expandedCommit: string | null
+  selectedCommit: string | null
   commitFiles: Record<string, GitCommitFile[]>
+  selectedCommitFile: string | null
+  commitFileDiff: string
   loading: boolean
 
   // Core
@@ -34,8 +36,8 @@ interface GitState {
 
   // History operations
   loadMoreCommits: (projectPath: string) => Promise<void>
-  viewCommitDiff: (projectPath: string, hash: string) => Promise<void>
-  toggleCommitExpand: (projectPath: string, hash: string) => Promise<void>
+  selectCommit: (projectPath: string, hash: string) => Promise<void>
+  selectCommitFile: (projectPath: string, hash: string, filePath: string) => Promise<void>
   copyHash: (hash: string) => void
 
   // Branch
@@ -61,8 +63,10 @@ export const useGitStore = create<GitState>((set, get) => ({
   diffContent: "",
   diffTitle: "",
   activeTab: "changes",
-  expandedCommit: null,
+  selectedCommit: null,
   commitFiles: {},
+  selectedCommitFile: null,
+  commitFileDiff: "",
   loading: false,
 
   refreshAll: async (projectPath: string) => {
@@ -100,8 +104,6 @@ export const useGitStore = create<GitState>((set, get) => ({
         commitOffset: PAGE_SIZE,
         commitHasMore: ((logResult.commits as GitCommit[]) || []).length >= PAGE_SIZE,
         branches: (branchResult.branches as { name: string; is_current: boolean }[]) || [],
-        expandedCommit: null,
-        commitFiles: {},
       })
     } finally {
       set({ loading: false })
@@ -171,31 +173,26 @@ export const useGitStore = create<GitState>((set, get) => ({
     })
   },
 
-  viewCommitDiff: async (projectPath, hash) => {
-    const a = await api()
-    const result = await a.git.show(projectPath, hash)
-    set({
-      diffContent: (result.diff as string) || "",
-      diffTitle: hash.substring(0, 7),
-    })
-  },
+  selectCommit: async (projectPath, hash) => {
+    const { commitFiles } = get()
+    set({ selectedCommit: hash, selectedCommitFile: null, commitFileDiff: "" })
 
-  toggleCommitExpand: async (projectPath, hash) => {
-    const { expandedCommit, commitFiles } = get()
-    if (expandedCommit === hash) {
-      set({ expandedCommit: null })
-      return
-    }
+    // Load commit files if not cached
     if (!commitFiles[hash]) {
       const a = await api()
       const result = await a.git.show_stat(projectPath, hash)
+      const currentFiles = get().commitFiles
       set({
-        expandedCommit: hash,
-        commitFiles: { ...commitFiles, [hash]: (result.files as GitCommitFile[]) || [] },
+        commitFiles: { ...currentFiles, [hash]: (result.files as GitCommitFile[]) || [] },
       })
-    } else {
-      set({ expandedCommit: hash })
     }
+  },
+
+  selectCommitFile: async (projectPath, hash, filePath) => {
+    set({ selectedCommitFile: filePath, commitFileDiff: "" })
+    const a = await api()
+    const result = await a.git.show(projectPath, hash, filePath)
+    set({ commitFileDiff: (result.diff as string) || "" })
   },
 
   copyHash: (hash) => {

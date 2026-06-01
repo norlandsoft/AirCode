@@ -7,12 +7,12 @@ import {
   Minus,
   RotateCcw,
   ChevronDown,
-  ChevronRight,
-  FileText,
+  Copy,
 } from "lucide-react"
 import { useProjectStore } from "@/stores/useProjectStore"
 import { useGitStore } from "@/stores/useGitStore"
-import type { Tab, GitFileChange, GitCommit } from "@/lib/types"
+import { SplitPane } from "@/components/layout/SplitPane"
+import type { Tab, GitFileChange, GitCommit, GitCommitFile } from "@/lib/types"
 
 interface GitTabProps {
   tab: Tab
@@ -75,13 +75,15 @@ function BranchSelector() {
   )
 }
 
-// ── File Row ──────────────────────────────────────────────────
+// ── Status Color ──────────────────────────────────────────────
 
 function statusColor(status: string): string {
   if (status === "D") return "text-danger"
   if (status === "?" || status === "M") return "text-warning"
   return "text-success"
 }
+
+// ── File Row (for changes panel) ──────────────────────────────
 
 function FileRow({
   file,
@@ -231,16 +233,13 @@ function ChangesPanel({ projectPath }: { projectPath: string }) {
   )
 }
 
-// ── History Panel ─────────────────────────────────────────────
+// ── History Panel (simplified list) ───────────────────────────
 
 function HistoryPanel({ projectPath }: { projectPath: string }) {
   const commits = useGitStore((s) => s.commits)
   const commitHasMore = useGitStore((s) => s.commitHasMore)
-  const expandedCommit = useGitStore((s) => s.expandedCommit)
-  const commitFiles = useGitStore((s) => s.commitFiles)
-  const viewCommitDiff = useGitStore((s) => s.viewCommitDiff)
-  const toggleCommitExpand = useGitStore((s) => s.toggleCommitExpand)
-  const copyHash = useGitStore((s) => s.copyHash)
+  const selectedCommit = useGitStore((s) => s.selectedCommit)
+  const selectCommit = useGitStore((s) => s.selectCommit)
   const loadMoreCommits = useGitStore((s) => s.loadMoreCommits)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -271,62 +270,23 @@ function HistoryPanel({ projectPath }: { projectPath: string }) {
   return (
     <div className="flex-1 overflow-y-auto">
       {commits.map((c: GitCommit) => (
-        <div key={c.hash}>
-          <div className="group flex items-start gap-2 rounded px-2 py-1.5 text-xs hover:bg-panel-hover">
-            <button
-              onClick={() => toggleCommitExpand(projectPath, c.hash)}
-              className="mt-0.5 shrink-0 text-text-muted"
-            >
-              {expandedCommit === c.hash ? (
-                <ChevronDown size={12} />
-              ) : (
-                <ChevronRight size={12} />
-              )}
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => copyHash(c.hash)}
-                  className="shrink-0 font-mono text-[0.65rem] text-text-muted hover:text-accent"
-                  title="复制哈希"
-                >
-                  {c.hash.substring(0, 7)}
-                </button>
-                <span className="truncate text-text-primary">{c.message}</span>
-              </div>
-              <div className="text-text-muted">
-                {c.author} · {relativeTime(c.timestamp)}
-              </div>
-            </div>
-            <button
-              onClick={() => viewCommitDiff(projectPath, c.hash)}
-              className="mt-0.5 shrink-0 opacity-0 group-hover:opacity-100"
-              title="查看 diff"
-            >
-              <FileText size={12} className="text-text-muted hover:text-text-primary" />
-            </button>
+        <div
+          key={c.hash}
+          onClick={() => selectCommit(projectPath, c.hash)}
+          className={`cursor-pointer rounded px-2 py-1.5 text-xs transition-colors ${
+            selectedCommit === c.hash
+              ? "bg-blue-500/10 border-l-2 border-blue-500"
+              : "hover:bg-panel-hover border-l-2 border-transparent"
+          }`}
+        >
+          <div className="truncate text-text-primary">{c.message}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-text-muted">
+            <span className="font-mono text-[0.65rem]">{c.hash.substring(0, 7)}</span>
+            <span>·</span>
+            <span>{c.author}</span>
+            <span>·</span>
+            <span>{relativeTime(c.timestamp)}</span>
           </div>
-
-          {/* Expanded commit files */}
-          {expandedCommit === c.hash && commitFiles[c.hash] && (
-            <div className="border-b border-panel-border bg-panel-hover/30 pb-1 pl-7 pr-2">
-              {(commitFiles[c.hash] || []).map((f) => (
-                <div
-                  key={f.path}
-                  className="flex items-center gap-2 rounded px-2 py-0.5 text-[0.65rem] hover:bg-panel-hover cursor-pointer"
-                  onClick={() => viewCommitDiff(projectPath, c.hash)}
-                >
-                  <span className={`font-mono ${statusColor(f.status)}`}>{f.status}</span>
-                  <span className="flex-1 truncate text-text-secondary">{f.path}</span>
-                  <span className="text-success">+{f.additions}</span>
-                  <span className="text-danger">-{f.deletions}</span>
-                </div>
-              ))}
-              {commitFiles[c.hash].length === 0 && (
-                <div className="px-2 py-1 text-[0.65rem] text-text-muted">无文件变更信息</div>
-              )}
-            </div>
-          )}
         </div>
       ))}
 
@@ -385,7 +345,7 @@ function CommitBox({ projectPath }: { projectPath: string }) {
   )
 }
 
-// ── Diff Panel (right side) ───────────────────────────────────
+// ── Diff Panel (for changes tab, right side) ──────────────────
 
 function DiffPanel() {
   const diffContent = useGitStore((s) => s.diffContent)
@@ -409,6 +369,125 @@ function DiffPanel() {
           {diffContent}
         </pre>
       </div>
+    </div>
+  )
+}
+
+// ── Commit Detail Panel (for history tab, right side) ─────────
+
+function CommitDetailPanel({ projectPath }: { projectPath: string }) {
+  const commits = useGitStore((s) => s.commits)
+  const selectedCommit = useGitStore((s) => s.selectedCommit)
+  const commitFiles = useGitStore((s) => s.commitFiles)
+  const selectedCommitFile = useGitStore((s) => s.selectedCommitFile)
+  const commitFileDiff = useGitStore((s) => s.commitFileDiff)
+  const selectCommitFile = useGitStore((s) => s.selectCommitFile)
+  const copyHash = useGitStore((s) => s.copyHash)
+
+  const commit = commits.find((c) => c.hash === selectedCommit)
+
+  if (!commit) {
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-text-muted">
+        点击左侧提交查看详情
+      </div>
+    )
+  }
+
+  const files = commitFiles[commit.hash] || []
+
+  function relativeTime(ts: number): string {
+    const diff = Math.floor(Date.now() / 1000 - ts)
+    if (diff < 60) return "刚刚"
+    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
+    if (diff < 2592000) return `${Math.floor(diff / 86400)}天前`
+    return new Date(ts * 1000).toLocaleDateString("zh-CN")
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Top: commit info */}
+      <div className="shrink-0 border-b border-panel-border px-4 py-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-text-primary">{commit.message}</div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+              <span className="flex items-center gap-1">
+                <span className="font-mono">{commit.hash.substring(0, 7)}</span>
+                <button
+                  onClick={() => copyHash(commit.hash)}
+                  className="text-text-muted hover:text-accent"
+                  title="复制完整哈希"
+                >
+                  <Copy size={11} />
+                </button>
+              </span>
+              <span>{commit.author}</span>
+              <span>{relativeTime(commit.timestamp)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom: file list (left) + file diff (right) */}
+      <SplitPane
+        defaultLeftWidth={224}
+        minLeftWidth={140}
+        minRightWidth={200}
+        left={
+          <div className="flex h-full flex-col">
+            <div className="shrink-0 border-b border-panel-border px-3 py-1.5 text-[0.65rem] font-medium uppercase tracking-wider text-text-muted">
+              变更文件 ({files.length})
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {files.map((f: GitCommitFile) => (
+                <div
+                  key={f.path}
+                  onClick={() => selectCommitFile(projectPath, commit.hash, f.path)}
+                  className={`flex cursor-pointer items-center gap-1.5 px-3 py-1 text-xs transition-colors ${
+                    selectedCommitFile === f.path
+                      ? "bg-blue-500/10 text-text-primary"
+                      : "text-text-secondary hover:bg-panel-hover"
+                  }`}
+                >
+                  <span className={`w-4 shrink-0 text-center font-mono ${statusColor(f.status)}`}>
+                    {f.status}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{f.path}</span>
+                  <span className="shrink-0 text-[0.6rem]">
+                    <span className="text-success">+{f.additions}</span>
+                    <span className="text-danger ml-1">-{f.deletions}</span>
+                  </span>
+                </div>
+              ))}
+              {files.length === 0 && (
+                <div className="px-3 py-4 text-center text-[0.65rem] text-text-muted">加载中...</div>
+              )}
+            </div>
+          </div>
+        }
+        right={
+          <div className="h-full overflow-hidden">
+            {!selectedCommitFile ? (
+              <div className="flex h-full items-center justify-center text-xs text-text-muted">
+                选择文件查看变更内容
+              </div>
+            ) : (
+              <div className="flex h-full flex-col">
+                <div className="shrink-0 border-b border-panel-border px-3 py-1.5 text-xs font-medium text-text-secondary">
+                  {selectedCommitFile}
+                </div>
+                <div className="flex-1 overflow-auto p-3">
+                  <pre className="whitespace-pre-wrap font-mono text-xs leading-5 text-text-secondary">
+                    {commitFileDiff || "加载中..."}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
+        }
+      />
     </div>
   )
 }
@@ -450,69 +529,77 @@ export function GitTab({ tab: _tab }: GitTabProps) {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Left panel */}
-      <div className="flex w-80 flex-col border-r border-panel-border">
-        {/* Header: branch + push/fetch */}
-        <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
-          <BranchSelector />
-          <div className="flex items-center gap-1">
+    <SplitPane
+      defaultLeftWidth={320}
+      minLeftWidth={240}
+      minRightWidth={300}
+      left={
+        <div className="flex h-full flex-col">
+          {/* Header: branch + push/fetch */}
+          <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
+            <BranchSelector />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => fetchAction(activeProject.path)}
+                className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
+                title="拉取远程更新"
+              >
+                <Download size={14} />
+              </button>
+              <button
+                onClick={() => pushAction(activeProject.path)}
+                className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
+                title="推送到远程"
+              >
+                <Upload size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Tab switcher */}
+          <div className="flex border-b border-panel-border">
             <button
-              onClick={() => fetchAction(activeProject.path)}
-              className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
-              title="拉取远程更新"
+              onClick={() => setActiveTab("changes")}
+              className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
+                activeTab === "changes"
+                  ? "border-b-[3px] border-blue-500 text-text-primary"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
             >
-              <Download size={14} />
+              更改
             </button>
             <button
-              onClick={() => pushAction(activeProject.path)}
-              className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
-              title="推送到远程"
+              onClick={() => setActiveTab("history")}
+              className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
+                activeTab === "history"
+                  ? "border-b-[3px] border-blue-500 text-text-primary"
+                  : "text-text-muted hover:text-text-secondary"
+              }`}
             >
-              <Upload size={14} />
+              历史
             </button>
           </div>
+
+          {/* Tab content */}
+          {activeTab === "changes" ? (
+            <ChangesPanel projectPath={activeProject.path} />
+          ) : (
+            <HistoryPanel projectPath={activeProject.path} />
+          )}
+
+          {/* Commit box */}
+          <CommitBox projectPath={activeProject.path} />
         </div>
-
-        {/* Tab switcher */}
-        <div className="flex border-b border-panel-border">
-          <button
-            onClick={() => setActiveTab("changes")}
-            className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
-              activeTab === "changes"
-                ? "border-b-[3px] border-blue-500 text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            更改
-          </button>
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
-              activeTab === "history"
-                ? "border-b-[3px] border-blue-500 text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            历史
-          </button>
+      }
+      right={
+        <div className="h-full overflow-hidden">
+          {activeTab === "changes" ? (
+            <DiffPanel />
+          ) : (
+            <CommitDetailPanel projectPath={activeProject.path} />
+          )}
         </div>
-
-        {/* Tab content */}
-        {activeTab === "changes" ? (
-          <ChangesPanel projectPath={activeProject.path} />
-        ) : (
-          <HistoryPanel projectPath={activeProject.path} />
-        )}
-
-        {/* Commit box */}
-        <CommitBox projectPath={activeProject.path} />
-      </div>
-
-      {/* Right panel: diff */}
-      <div className="flex-1 overflow-hidden">
-        <DiffPanel />
-      </div>
-    </div>
+      }
+    />
   )
 }

@@ -144,9 +144,12 @@ class GitApi:
         """Discard working tree changes for a single file."""
         return self._run_git(["checkout", "--", file_path], project_path)
 
-    def show(self, project_path: str, hash: str) -> dict:
-        """Return full diff for a commit."""
-        result = self._run_git(["show", hash], project_path)
+    def show(self, project_path: str, hash: str, file_path: str | None = None) -> dict:
+        """Return full diff for a commit, optionally filtered by file."""
+        args = ["show", hash]
+        if file_path:
+            args.extend(["--", file_path])
+        result = self._run_git(args, project_path)
         if "error" in result:
             return result
         return {"diff": result["output"]}

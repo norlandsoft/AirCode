@@ -43,7 +43,7 @@ declare global {
           add(project_path: string, file_path?: string): Promise<ApiResponse>
           reset(project_path: string, file_path?: string): Promise<ApiResponse>
           checkout_file(project_path: string, file_path: string): Promise<ApiResponse>
-          show(project_path: string, hash: string): Promise<ApiResponse>
+          show(project_path: string, hash: string, file_path?: string): Promise<ApiResponse>
           show_stat(project_path: string, hash: string): Promise<ApiResponse>
           push(project_path: string): Promise<ApiResponse>
           fetch(project_path: string): Promise<ApiResponse>
