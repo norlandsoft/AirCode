@@ -156,7 +156,7 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   loadMoreCommits: async (projectPath) => {
-    const { commitOffset, commits } = get()
+    const { commitOffset } = get()
     const a = await api()
     const result = await a.git.log(projectPath, commitOffset + PAGE_SIZE)
     const newCommits = (result.commits as GitCommit[]) || []
