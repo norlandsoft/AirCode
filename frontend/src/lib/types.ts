@@ -117,6 +117,7 @@ export interface PipelineNode {
   id: string
   name: string
   command: string
+  shell?: "zsh" | "bash"
   workDir?: string
   env?: Record<string, string>
 }

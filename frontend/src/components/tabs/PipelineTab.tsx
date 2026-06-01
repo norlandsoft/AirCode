@@ -201,6 +201,17 @@ function NodeItem({
                 placeholder="工作目录（默认项目根目录）"
                 className="w-full rounded border border-panel-border bg-panel-bg px-2 py-1 text-xs text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
               />
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-text-muted shrink-0">Shell</span>
+                <select
+                  value={node.shell || "zsh"}
+                  onChange={(e) => onUpdate({ shell: e.target.value as "zsh" | "bash" })}
+                  className="rounded border border-panel-border bg-panel-bg px-2 py-1 text-xs text-text-primary focus:border-accent focus:outline-none"
+                >
+                  <option value="zsh">zsh</option>
+                  <option value="bash">bash</option>
+                </select>
+              </div>
               <div className="flex justify-end gap-1">
                 <button
                   onClick={(e) => {
@@ -216,9 +227,14 @@ function NodeItem({
           ) : (
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-text-primary">{node.name}</span>
-              <span className={`text-[11px] font-mono ${hasCommand ? "text-text-muted" : "text-yellow-500"}`}>
-                {hasCommand ? node.command : "未设置命令"}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-panel-hover px-1.5 py-0.5 text-[10px] font-mono text-text-muted">
+                  {node.shell || "zsh"}
+                </span>
+                <span className={`text-[11px] font-mono ${hasCommand ? "text-text-muted" : "text-yellow-500"}`}>
+                  {hasCommand ? node.command : "未设置命令"}
+                </span>
+              </div>
             </div>
           )}
         </div>

@@ -61,20 +61,20 @@ export function TabBar() {
 
       {/* Add buttons - pinned to the right */}
       <button
-        onClick={() => handleAddTab("code")}
-        disabled={!activeProjectId}
-        className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
-        title="新建代码标签"
-      >
-        <FolderTree size={14} />
-      </button>
-      <button
         onClick={() => handleAddTab("terminal")}
         disabled={!activeProjectId}
         className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
         title="新建终端标签"
       >
         <Terminal size={14} />
+      </button>
+      <button
+        onClick={() => handleAddTab("code")}
+        disabled={!activeProjectId}
+        className="flex items-center gap-1 border-l border-panel-border px-2.5 h-full text-text-secondary hover:bg-panel-hover hover:text-text-primary disabled:opacity-30"
+        title="新建代码标签"
+      >
+        <FolderTree size={14} />
       </button>
       <button
         onClick={() => handleAddTab("pipeline")}

@@ -155,9 +155,14 @@ class PipelineApi:
                 node_env = {**os.environ, **node["env"]}
 
             try:
+                # Resolve shell executable based on node preference
+                shell_type = node.get("shell", "zsh")
+                shell_executable = "/bin/zsh" if shell_type == "zsh" else "/bin/bash"
+                # Use login shell (-l) so user's profile (.zshrc/.bash_profile)
+                # is sourced, making tools like npm/node available via PATH.
                 proc = subprocess.Popen(
-                    node["command"],
-                    shell=True,
+                    [shell_executable, "-l", "-c", node["command"]],
+                    shell=False,
                     cwd=node_work_dir,
                     env=node_env,
                     stdout=subprocess.PIPE,
