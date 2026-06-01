@@ -50,6 +50,19 @@ export interface GitCommit {
   message: string
 }
 
+export interface GitFileChange {
+  path: string
+  status: string
+  staged: boolean
+}
+
+export interface GitCommitFile {
+  path: string
+  status: string
+  additions: number
+  deletions: number
+}
+
 export interface TerminalSession {
   id: string
   pid: number
