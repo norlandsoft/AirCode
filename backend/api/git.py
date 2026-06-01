@@ -105,8 +105,8 @@ class GitApi:
         return {"success": True, "output": result["output"]}
 
     def branch_list(self, project_path: str) -> dict:
-        """List all branches."""
-        result = self._run_git(["branch", "-a", "--format=%(refname:short)|%(HEAD)"], project_path)
+        """List local branches only."""
+        result = self._run_git(["branch", "--format=%(refname:short)|%(HEAD)"], project_path)
         if "error" in result:
             return result
 
@@ -183,3 +183,11 @@ class GitApi:
                     "deletions": deletions,
                 })
         return {"files": files}
+
+    def push(self, project_path: str) -> dict:
+        """Push current branch to remote."""
+        return self._run_git(["push"], project_path)
+
+    def fetch(self, project_path: str) -> dict:
+        """Fetch from remote."""
+        return self._run_git(["fetch"], project_path)

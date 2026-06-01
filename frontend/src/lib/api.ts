@@ -45,6 +45,8 @@ declare global {
           checkout_file(project_path: string, file_path: string): Promise<ApiResponse>
           show(project_path: string, hash: string): Promise<ApiResponse>
           show_stat(project_path: string, hash: string): Promise<ApiResponse>
+          push(project_path: string): Promise<ApiResponse>
+          fetch(project_path: string): Promise<ApiResponse>
         }
         settings: {
           get_settings(): Promise<ApiResponse>
@@ -142,6 +144,8 @@ const mockApi = {
     checkout_file: async () => ({ output: "" }),
     show: async () => ({ diff: "mock commit diff" }),
     show_stat: async () => ({ files: [] }),
+    push: async () => ({ output: "" }),
+    fetch: async () => ({ output: "" }),
   },
   settings: {
     get_settings: async () => ({

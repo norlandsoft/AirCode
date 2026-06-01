@@ -41,6 +41,10 @@ interface GitState {
   // Branch
   switchBranch: (projectPath: string, branch: string) => Promise<void>
 
+  // Remote
+  push: (projectPath: string) => Promise<void>
+  fetch: (projectPath: string) => Promise<void>
+
   // Diff
   clearDiff: () => void
 }
@@ -204,6 +208,18 @@ export const useGitStore = create<GitState>((set, get) => ({
     if (!result.error) {
       await get().refreshAll(projectPath)
     }
+  },
+
+  push: async (projectPath) => {
+    const a = await api()
+    await a.git.push(projectPath)
+    await get().refreshAll(projectPath)
+  },
+
+  fetch: async (projectPath) => {
+    const a = await api()
+    await a.git.fetch(projectPath)
+    await get().refreshAll(projectPath)
   },
 
   clearDiff: () => set({ diffContent: "", diffTitle: "" }),

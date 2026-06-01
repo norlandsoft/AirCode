@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import {
   GitBranch,
-  RefreshCw,
+  Upload,
+  Download,
   Plus,
   Minus,
   RotateCcw,
@@ -421,12 +422,23 @@ export function GitTab({ tab: _tab }: GitTabProps) {
   const activeTab = useGitStore((s) => s.activeTab)
   const setActiveTab = useGitStore((s) => s.setActiveTab)
   const refreshAll = useGitStore((s) => s.refreshAll)
-  const loading = useGitStore((s) => s.loading)
+  const pushAction = useGitStore((s) => s.push)
+  const fetchAction = useGitStore((s) => s.fetch)
 
+  // Auto-refresh on mount and when project changes
   useEffect(() => {
     if (activeProject?.path) {
       refreshAll(activeProject.path)
     }
+  }, [activeProject?.path, refreshAll])
+
+  // Auto-poll every 5 seconds
+  useEffect(() => {
+    if (!activeProject?.path) return
+    const id = setInterval(() => {
+      refreshAll(activeProject.path)
+    }, 5000)
+    return () => clearInterval(id)
   }, [activeProject?.path, refreshAll])
 
   if (!activeProject) {
@@ -441,16 +453,25 @@ export function GitTab({ tab: _tab }: GitTabProps) {
     <div className="flex h-full">
       {/* Left panel */}
       <div className="flex w-80 flex-col border-r border-panel-border">
-        {/* Header: branch + refresh */}
+        {/* Header: branch + push/fetch */}
         <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
           <BranchSelector />
-          <button
-            onClick={() => refreshAll(activeProject.path)}
-            className="rounded p-1 text-text-muted hover:bg-panel-hover"
-            title="刷新"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => fetchAction(activeProject.path)}
+              className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
+              title="拉取远程更新"
+            >
+              <Download size={14} />
+            </button>
+            <button
+              onClick={() => pushAction(activeProject.path)}
+              className="rounded p-1 text-text-muted hover:bg-panel-hover hover:text-text-primary"
+              title="推送到远程"
+            >
+              <Upload size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Tab switcher */}
@@ -459,7 +480,7 @@ export function GitTab({ tab: _tab }: GitTabProps) {
             onClick={() => setActiveTab("changes")}
             className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
               activeTab === "changes"
-                ? "border-b-2 border-accent text-text-primary"
+                ? "border-b-[3px] border-blue-500 text-text-primary"
                 : "text-text-muted hover:text-text-secondary"
             }`}
           >
@@ -469,7 +490,7 @@ export function GitTab({ tab: _tab }: GitTabProps) {
             onClick={() => setActiveTab("history")}
             className={`flex-1 py-1.5 text-center text-xs font-medium transition-colors ${
               activeTab === "history"
-                ? "border-b-2 border-accent text-text-primary"
+                ? "border-b-[3px] border-blue-500 text-text-primary"
                 : "text-text-muted hover:text-text-secondary"
             }`}
           >
