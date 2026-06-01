@@ -40,6 +40,11 @@ declare global {
           branch_list(project_path: string): Promise<ApiResponse>
           checkout(project_path: string, branch: string): Promise<ApiResponse>
           init(project_path: string): Promise<ApiResponse>
+          add(project_path: string, file_path?: string): Promise<ApiResponse>
+          reset(project_path: string, file_path?: string): Promise<ApiResponse>
+          checkout_file(project_path: string, file_path: string): Promise<ApiResponse>
+          show(project_path: string, hash: string): Promise<ApiResponse>
+          show_stat(project_path: string, hash: string): Promise<ApiResponse>
         }
         settings: {
           get_settings(): Promise<ApiResponse>
@@ -132,6 +137,11 @@ const mockApi = {
     }),
     checkout: async () => ({ output: "" }),
     init: async () => ({ output: "Initialized empty Git repository" }),
+    add: async () => ({ output: "" }),
+    reset: async () => ({ output: "" }),
+    checkout_file: async () => ({ output: "" }),
+    show: async () => ({ diff: "mock commit diff" }),
+    show_stat: async () => ({ files: [] }),
   },
   settings: {
     get_settings: async () => ({
