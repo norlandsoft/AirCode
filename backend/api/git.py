@@ -98,10 +98,7 @@ class GitApi:
         return {"diff": result["output"]}
 
     def commit(self, project_path: str, message: str) -> dict:
-        """Stage all changes and commit."""
-        add_result = self._run_git(["add", "-A"], project_path)
-        if "error" in add_result:
-            return add_result
+        """Commit staged changes."""
         result = self._run_git(["commit", "-m", message], project_path)
         if "error" in result:
             return result
@@ -130,3 +127,59 @@ class GitApi:
     def init(self, project_path: str) -> dict:
         """Initialize a git repository."""
         return self._run_git(["init"], project_path)
+
+    def add(self, project_path: str, file_path: str | None = None) -> dict:
+        """Stage a single file or all changes."""
+        if file_path:
+            return self._run_git(["add", "--", file_path], project_path)
+        return self._run_git(["add", "-A"], project_path)
+
+    def reset(self, project_path: str, file_path: str | None = None) -> dict:
+        """Unstage a single file or all staged changes."""
+        if file_path:
+            return self._run_git(["reset", "HEAD", "--", file_path], project_path)
+        return self._run_git(["reset"], project_path)
+
+    def checkout_file(self, project_path: str, file_path: str) -> dict:
+        """Discard working tree changes for a single file."""
+        return self._run_git(["checkout", "--", file_path], project_path)
+
+    def show(self, project_path: str, hash: str) -> dict:
+        """Return full diff for a commit."""
+        result = self._run_git(["show", hash], project_path)
+        if "error" in result:
+            return result
+        return {"diff": result["output"]}
+
+    def show_stat(self, project_path: str, hash: str) -> dict:
+        """Return changed files in a commit with additions/deletions."""
+        result = self._run_git(
+            ["show", "--stat", "--format=", hash],
+            project_path,
+        )
+        if "error" in result:
+            return result
+
+        files = []
+        for line in result["output"].splitlines():
+            line = line.strip()
+            if not line or ("file" in line and "changed" in line):
+                continue
+            if "|" in line:
+                parts = line.split("|")
+                path = parts[0].strip()
+                stats_part = parts[1].strip() if len(parts) > 1 else ""
+                additions = stats_part.count("+")
+                deletions = stats_part.count("-")
+                status = "M"
+                if additions > 0 and deletions == 0:
+                    status = "A"
+                elif additions == 0 and deletions > 0:
+                    status = "D"
+                files.append({
+                    "path": path,
+                    "status": status,
+                    "additions": additions,
+                    "deletions": deletions,
+                })
+        return {"files": files}
