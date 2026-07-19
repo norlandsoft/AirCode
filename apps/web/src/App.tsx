@@ -1,25 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Flex,
-  Input,
-  Layout,
-  Space,
-  Splitter,
-  Tag,
-  Typography,
-} from "antd";
-import {
-  ClearOutlined,
-  PauseCircleOutlined,
-  SendOutlined,
-} from "@ant-design/icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Drawer, Flex, Layout, Tag, Typography } from "antd";
+import { UnorderedListOutlined } from "@ant-design/icons";
 import type { AgentEventDto } from "@aircode/shared";
 import { aircodeApi } from "./lib/api";
-import { MarkdownView } from "./components/MarkdownView";
-import { CodeViewer } from "./components/CodeViewer";
+import { SessionSidebar } from "./components/SessionSidebar";
+import { ChatMessage, type ChatItem } from "./components/ChatMessage";
+import { ComposerInput } from "./components/ComposerInput";
 import {
   formatLogTime,
   RunLogPanel,
@@ -27,415 +13,410 @@ import {
   type RunLogLevel,
 } from "./components/RunLogPanel";
 
-const { Header, Content, Footer } = Layout;
+const { Content } = Layout;
 const { Text, Title } = Typography;
-const { TextArea } = Input;
 
-interface ChatItem {
+interface AgentSession {
   id: string;
-  kind: "user" | "assistant" | "tool" | "error";
-  text: string;
-  language?: string;
+  title: string;
+  cwd: string;
+  updatedAt: number;
+  items: ChatItem[];
+  logs: RunLogEntry[];
+  streaming: boolean;
+  status: string;
+  error: string | null;
 }
 
 function nextId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function appendLog(
-  setLogs: Dispatch<SetStateAction<RunLogEntry[]>>,
-  level: RunLogLevel,
-  source: string,
-  message: string,
-): void {
-  setLogs((prev) => [
-    ...prev,
-    {
-      id: nextId(),
-      time: formatLogTime(),
-      level,
-      source,
-      message,
-    },
-  ]);
+function makeLog(level: RunLogLevel, source: string, message: string): RunLogEntry {
+  return {
+    id: nextId(),
+    time: formatLogTime(),
+    level,
+    source,
+    message,
+  };
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function titleFromPrompt(text: string): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  return oneLine ? truncate(oneLine, 36) : "新会话";
 }
 
 export function App() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [cwd, setCwd] = useState<string>("");
-  const [input, setInput] = useState("列出当前目录的文件");
-  const [items, setItems] = useState<ChatItem[]>([]);
-  const [logs, setLogs] = useState<RunLogEntry[]>([]);
-  const [streaming, setStreaming] = useState(false);
-  const [status, setStatus] = useState("正在初始化会话…");
-  const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [input, setInput] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const assistantBuffer = useRef("");
-  const sessionIdRef = useRef<string | null>(null);
+  const assistantBuffers = useRef(new Map<string, string>());
+  const unsubsRef = useRef(new Map<string, () => void>());
+  const sessionsRef = useRef<AgentSession[]>([]);
+  const createSessionRef = useRef<() => Promise<string | null>>(async () => null);
 
   useEffect(() => {
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
-    async function boot(): Promise<void> {
-      appendLog(setLogs, "info", "system", "正在创建 Agent 会话…");
-      const result = await aircodeApi.createSession({ cwd: "" });
-      if (disposed) {
-        if (result.ok) {
-          void aircodeApi.dispose({ sessionId: result.data.sessionId });
-        }
-        return;
-      }
-      if (!result.ok) {
-        setError(result.error);
-        setStatus("会话创建失败");
-        appendLog(setLogs, "error", "system", `会话创建失败: ${result.error}`);
-        return;
-      }
+  const active = useMemo(
+    () => sessions.find((s) => s.id === activeId) ?? null,
+    [sessions, activeId],
+  );
 
-      sessionIdRef.current = result.data.sessionId;
-      setSessionId(result.data.sessionId);
-      setCwd(result.data.cwd);
-      unsubscribe = aircodeApi.subscribeEvents(result.data.sessionId, (event) => {
-        handleEvent(event);
-      });
-      setStatus("就绪");
-      appendLog(
-        setLogs,
-        "success",
-        "system",
-        `会话已就绪 (${result.data.sessionId.slice(0, 8)}) cwd=${result.data.cwd}`,
+  const patchSession = useCallback(
+    (id: string, patch: Partial<AgentSession> | ((prev: AgentSession) => Partial<AgentSession>)) => {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          const next = typeof patch === "function" ? patch(s) : patch;
+          return { ...s, ...next, updatedAt: Date.now() };
+        }),
       );
+    },
+    [],
+  );
+
+  const appendLog = useCallback(
+    (id: string, level: RunLogLevel, source: string, message: string) => {
+      patchSession(id, (s) => ({
+        logs: [...s.logs, makeLog(level, source, message)],
+      }));
+    },
+    [patchSession],
+  );
+
+  const handleEvent = useCallback(
+    (sessionId: string, event: AgentEventDto) => {
+      switch (event.type) {
+        case "agent_start":
+          patchSession(sessionId, { streaming: true, status: "运行中…" });
+          appendLog(sessionId, "info", "agent", "开始处理任务");
+          break;
+        case "turn_start":
+          appendLog(sessionId, "debug", "agent", "回合开始");
+          break;
+        case "turn_end":
+          appendLog(sessionId, "debug", "agent", "回合结束");
+          break;
+        case "message_start":
+          appendLog(sessionId, "debug", "message", `消息开始 role=${event.role}`);
+          if (event.role === "assistant") {
+            assistantBuffers.current.set(sessionId, "");
+            patchSession(sessionId, (s) => ({
+              items: [...s.items, { id: nextId(), kind: "assistant", text: "" }],
+            }));
+          }
+          break;
+        case "message_update":
+          if (event.delta) {
+            const prev = assistantBuffers.current.get(sessionId) ?? "";
+            const text = prev + event.delta;
+            assistantBuffers.current.set(sessionId, text);
+            patchSession(sessionId, (s) => {
+              const items = [...s.items];
+              for (let i = items.length - 1; i >= 0; i -= 1) {
+                if (items[i]?.kind === "assistant") {
+                  items[i] = { ...items[i]!, text };
+                  break;
+                }
+              }
+              return { items };
+            });
+          }
+          break;
+        case "message_end":
+          appendLog(
+            sessionId,
+            "info",
+            "message",
+            `消息结束 role=${event.role}${event.text ? ` (${event.text.length} 字符)` : ""}`,
+          );
+          break;
+        case "tool_execution_start":
+          appendLog(
+            sessionId,
+            "info",
+            "tool",
+            `${event.toolName} 开始 · ${event.toolCallId.slice(0, 8)}`,
+          );
+          patchSession(sessionId, (s) => ({
+            items: [
+              ...s.items,
+              {
+                id: nextId(),
+                kind: "tool",
+                toolName: event.toolName,
+                language: "json",
+                text: JSON.stringify(
+                  { tool: event.toolName, args: event.args ?? null },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          }));
+          break;
+        case "tool_execution_update":
+          if (event.partialText) {
+            appendLog(
+              sessionId,
+              "debug",
+              "tool",
+              `${event.toolName} 进度: ${truncate(event.partialText, 120)}`,
+            );
+          }
+          break;
+        case "tool_execution_end":
+          appendLog(
+            sessionId,
+            event.isError ? "error" : "success",
+            "tool",
+            `${event.toolName} ${event.isError ? "失败" : "完成"}`,
+          );
+          if (event.resultText) {
+            patchSession(sessionId, (s) => ({
+              items: [
+                ...s.items,
+                {
+                  id: nextId(),
+                  kind: "tool",
+                  toolName: event.toolName,
+                  language: "plaintext",
+                  text: truncate(event.resultText ?? "", 4000),
+                },
+              ],
+            }));
+          }
+          break;
+        case "agent_end":
+          patchSession(sessionId, { streaming: false, status: "就绪" });
+          appendLog(sessionId, "success", "agent", "任务结束");
+          break;
+        case "error":
+          patchSession(sessionId, (s) => ({
+            streaming: false,
+            status: "出错",
+            items: [...s.items, { id: nextId(), kind: "error", text: event.message }],
+          }));
+          appendLog(sessionId, "error", "agent", event.message);
+          break;
+        default:
+          break;
+      }
+    },
+    [appendLog, patchSession],
+  );
+
+  const ensureSubscribed = useCallback(
+    (sessionId: string) => {
+      if (unsubsRef.current.has(sessionId)) return;
+      const unsub = aircodeApi.subscribeEvents(sessionId, (event) => {
+        handleEvent(sessionId, event);
+      });
+      unsubsRef.current.set(sessionId, unsub);
+    },
+    [handleEvent],
+  );
+
+  const createSession = useCallback(async (): Promise<string | null> => {
+    setCreating(true);
+    setBootError(null);
+    const result = await aircodeApi.createSession({ cwd: "" });
+    setCreating(false);
+    if (!result.ok) {
+      setBootError(result.error);
+      return null;
     }
 
-    void boot();
+    const session: AgentSession = {
+      id: result.data.sessionId,
+      title: "新会话",
+      cwd: result.data.cwd,
+      updatedAt: Date.now(),
+      items: [],
+      logs: [makeLog("success", "system", `会话已创建 · ${result.data.sessionId.slice(0, 8)}`)],
+      streaming: false,
+      status: "就绪",
+      error: null,
+    };
 
+    setSessions((prev) => [session, ...prev]);
+    setActiveId(session.id);
+    ensureSubscribed(session.id);
+    return session.id;
+  }, [ensureSubscribed]);
+
+  createSessionRef.current = createSession;
+
+  useEffect(() => {
+    void createSessionRef.current();
     return () => {
-      disposed = true;
-      unsubscribe?.();
-      const id = sessionIdRef.current;
-      if (id) {
-        void aircodeApi.dispose({ sessionId: id });
+      for (const unsub of unsubsRef.current.values()) {
+        unsub();
+      }
+      unsubsRef.current.clear();
+      for (const session of sessionsRef.current) {
+        void aircodeApi.dispose({ sessionId: session.id });
       }
     };
   }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [items, streaming]);
+  }, [active?.items, active?.streaming]);
 
-  const canSend = useMemo(
-    () => Boolean(sessionId) && !streaming && input.trim().length > 0,
-    [sessionId, streaming, input],
-  );
-
-  function handleEvent(event: AgentEventDto): void {
-    switch (event.type) {
-      case "agent_start":
-        setStreaming(true);
-        appendLog(setLogs, "info", "agent", "开始处理任务");
-        break;
-      case "turn_start":
-        appendLog(setLogs, "debug", "agent", "回合开始");
-        break;
-      case "turn_end":
-        appendLog(setLogs, "debug", "agent", "回合结束");
-        break;
-      case "message_start":
-        appendLog(setLogs, "debug", "message", `消息开始 role=${event.role}`);
-        if (event.role === "assistant") {
-          assistantBuffer.current = "";
-          setItems((prev) => [
-            ...prev,
-            { id: nextId(), kind: "assistant", text: "" },
-          ]);
-        }
-        break;
-      case "message_update":
-        if (event.delta) {
-          assistantBuffer.current += event.delta;
-          const text = assistantBuffer.current;
-          setItems((prev) => {
-            const next = [...prev];
-            for (let i = next.length - 1; i >= 0; i -= 1) {
-              if (next[i]?.kind === "assistant") {
-                next[i] = { ...next[i]!, text };
-                break;
-              }
-            }
-            return next;
-          });
-        }
-        break;
-      case "message_end":
-        appendLog(
-          setLogs,
-          "info",
-          "message",
-          `消息结束 role=${event.role}${event.text ? ` (${event.text.length} 字符)` : ""}`,
-        );
-        break;
-      case "tool_execution_start":
-        appendLog(
-          setLogs,
-          "info",
-          "tool",
-          `${event.toolName} 开始 · ${event.toolCallId.slice(0, 8)}`,
-        );
-        setItems((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            kind: "tool",
-            language: "json",
-            text: JSON.stringify(
-              { tool: event.toolName, args: event.args ?? null },
-              null,
-              2,
-            ),
-          },
-        ]);
-        break;
-      case "tool_execution_update":
-        if (event.partialText) {
-          appendLog(
-            setLogs,
-            "debug",
-            "tool",
-            `${event.toolName} 进度: ${truncate(event.partialText, 120)}`,
-          );
-        }
-        break;
-      case "tool_execution_end":
-        appendLog(
-          setLogs,
-          event.isError ? "error" : "success",
-          "tool",
-          `${event.toolName} ${event.isError ? "失败" : "完成"}`,
-        );
-        if (event.resultText) {
-          setItems((prev) => [
-            ...prev,
-            {
-              id: nextId(),
-              kind: "tool",
-              language: "plaintext",
-              text: truncate(event.resultText ?? "", 4000),
-            },
-          ]);
-        }
-        break;
-      case "agent_end":
-        setStreaming(false);
-        setStatus("就绪");
-        appendLog(setLogs, "success", "agent", "任务结束");
-        break;
-      case "error":
-        setStreaming(false);
-        appendLog(setLogs, "error", "agent", event.message);
-        setItems((prev) => [
-          ...prev,
-          { id: nextId(), kind: "error", text: event.message },
-        ]);
-        break;
-      default:
-        break;
-    }
+  function onSelectSession(id: string): void {
+    if (id === activeId) return;
+    setActiveId(id);
+    ensureSubscribed(id);
   }
 
   async function onSend(): Promise<void> {
-    if (!sessionId || !canSend) {
-      return;
-    }
+    if (!active || active.streaming) return;
     const text = input.trim();
-    setInput("");
-    setError(null);
-    setStatus("运行中…");
-    setItems((prev) => [...prev, { id: nextId(), kind: "user", text }]);
-    appendLog(setLogs, "info", "user", truncate(text, 200));
+    if (!text) return;
 
-    const result = await aircodeApi.prompt({ sessionId, text });
+    setInput("");
+    const isFirst = active.items.every((i) => i.kind !== "user");
+    patchSession(active.id, (s) => ({
+      title: isFirst ? titleFromPrompt(text) : s.title,
+      status: "运行中…",
+      error: null,
+      items: [...s.items, { id: nextId(), kind: "user", text }],
+      logs: [...s.logs, makeLog("info", "user", truncate(text, 200))],
+    }));
+
+    const result = await aircodeApi.prompt({ sessionId: active.id, text });
     if (!result.ok) {
-      setStreaming(false);
-      setError(result.error);
-      setStatus("出错");
-      appendLog(setLogs, "error", "http", result.error);
-      setItems((prev) => [
-        ...prev,
-        { id: nextId(), kind: "error", text: result.error },
-      ]);
+      patchSession(active.id, (s) => ({
+        streaming: false,
+        status: "出错",
+        error: result.error,
+        items: [...s.items, { id: nextId(), kind: "error", text: result.error }],
+        logs: [...s.logs, makeLog("error", "http", result.error)],
+      }));
     }
   }
 
   async function onAbort(): Promise<void> {
-    if (!sessionId) {
-      return;
-    }
-    appendLog(setLogs, "warn", "user", "请求中断");
-    const result = await aircodeApi.abort({ sessionId });
+    if (!active) return;
+    appendLog(active.id, "warn", "user", "请求中断");
+    const result = await aircodeApi.abort({ sessionId: active.id });
     if (!result.ok) {
-      setError(result.error);
-      appendLog(setLogs, "error", "http", result.error);
+      patchSession(active.id, {
+        error: result.error,
+      });
+      appendLog(active.id, "error", "http", result.error);
     }
   }
 
   return (
     <Layout className="app-shell">
-      <Header className="app-header">
-        <Flex align="center" justify="space-between" style={{ width: "100%" }}>
-          <Space direction="vertical" size={0}>
-            <Title level={4} style={{ margin: 0, color: "#fff" }}>
-              AirCode
-            </Title>
-            <Text style={{ color: "rgba(255,255,255,0.75)" }}>
-              基于 Pi Agent 的通用智能体平台
-            </Text>
-          </Space>
-          <Space wrap>
-            <Tag color={streaming ? "processing" : "success"}>{status}</Tag>
-            <Tag>{cwd || "—"}</Tag>
-            <Tag>{sessionId ? sessionId.slice(0, 8) : "无会话"}</Tag>
-          </Space>
-        </Flex>
-      </Header>
+      <SessionSidebar
+        sessions={sessions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          updatedAt: s.updatedAt,
+          streaming: s.streaming,
+        }))}
+        activeId={activeId}
+        onSelect={onSelectSession}
+        onCreate={() => void createSession()}
+        creating={creating}
+      />
 
-      <Content className="app-content">
-        <Splitter className="app-splitter">
-          <Splitter.Panel defaultSize="62%" min="40%">
-            <Card
-              title="对话"
-              size="small"
-              className="panel-card"
-              styles={{ body: { height: "100%", overflow: "auto" } }}
-            >
-              {items.length === 0 ? (
-                <Flex align="center" justify="center" style={{ height: "100%" }}>
-                  <Text type="secondary">发送一条消息，开始与智能体协作。</Text>
-                </Flex>
-              ) : (
-                <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-                  {items.map((item) => (
-                    <ChatBubble
-                      key={item.id}
-                      item={item}
-                      streaming={streaming}
-                    />
-                  ))}
-                  <div ref={chatEndRef} />
-                </Space>
-              )}
-            </Card>
-          </Splitter.Panel>
-          <Splitter.Panel defaultSize="38%" min="28%">
-            <Card
-              title="运行日志"
-              size="small"
-              className="panel-card"
-              extra={
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={() => setLogs([])}
-                >
-                  清空
-                </Button>
-              }
-              styles={{ body: { height: "100%", overflow: "auto", padding: 8 } }}
-            >
-              <RunLogPanel logs={logs} />
-            </Card>
-          </Splitter.Panel>
-        </Splitter>
+      <Content className="chat-pane">
+        <header className="chat-header">
+          <div className="chat-header-main">
+            <Title level={5} style={{ margin: 0 }}>
+              {active?.title ?? "AirCode"}
+            </Title>
+            <Flex gap={8} wrap>
+              <Tag color={active?.streaming ? "processing" : "default"}>
+                {active?.status ?? "—"}
+              </Tag>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {active?.cwd ?? ""}
+              </Text>
+            </Flex>
+          </div>
+          <button
+            type="button"
+            className="chat-header-action"
+            onClick={() => setLogOpen(true)}
+            title="运行日志"
+          >
+            <UnorderedListOutlined />
+          </button>
+        </header>
+
+        <div className="chat-scroll">
+          {bootError ? (
+            <Alert type="error" showIcon message={bootError} style={{ marginBottom: 16 }} />
+          ) : null}
+
+          {!active || active.items.length === 0 ? (
+            <div className="chat-empty">
+              <Title level={3} style={{ fontWeight: 500, marginBottom: 8 }}>
+                开始新的 Agent 任务
+              </Title>
+              <Text type="secondary">在下方输入框描述你的目标，按 ⌘/Ctrl + Enter 发送。</Text>
+            </div>
+          ) : (
+            <div className="chat-thread">
+              {active.items.map((item) => (
+                <ChatMessage
+                  key={item.id}
+                  item={item}
+                  streaming={active.streaming && item.kind === "assistant"}
+                />
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+          )}
+        </div>
+
+        <div className="chat-composer-wrap">
+          {active?.error ? (
+            <Alert
+              type="error"
+              showIcon
+              message={active.error}
+              closable
+              onClose={() => patchSession(active.id, { error: null })}
+              style={{ marginBottom: 8 }}
+            />
+          ) : null}
+          <ComposerInput
+            value={input}
+            onChange={setInput}
+            onSend={() => void onSend()}
+            onAbort={() => void onAbort()}
+            disabled={!active}
+            streaming={Boolean(active?.streaming)}
+          />
+        </div>
       </Content>
 
-      <Footer className="app-footer">
-        {error ? (
-          <Alert
-            type="error"
-            showIcon
-            message={error}
-            style={{ marginBottom: 8 }}
-            closable
-            onClose={() => setError(null)}
-          />
-        ) : null}
-        <Space.Compact style={{ width: "100%" }}>
-          <TextArea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="输入任务，例如：阅读 README 并总结要点（Ctrl/⌘ + Enter 发送）"
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                void onSend();
-              }
-            }}
-          />
-        </Space.Compact>
-        <Flex justify="flex-end" gap={8} style={{ marginTop: 8 }}>
-          <Button
-            icon={<PauseCircleOutlined />}
-            onClick={() => void onAbort()}
-            disabled={!streaming}
-          >
-            中断
-          </Button>
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={() => void onSend()}
-            disabled={!canSend}
-            loading={streaming}
-          >
-            发送
-          </Button>
-        </Flex>
-      </Footer>
+      <Drawer
+        title="运行日志"
+        placement="right"
+        width={420}
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+      >
+        <RunLogPanel logs={active?.logs ?? []} />
+      </Drawer>
     </Layout>
   );
-}
-
-function ChatBubble({
-  item,
-  streaming,
-}: {
-  item: ChatItem;
-  streaming: boolean;
-}) {
-  const title =
-    item.kind === "user"
-      ? "用户"
-      : item.kind === "assistant"
-        ? "助手"
-        : item.kind === "tool"
-          ? "工具"
-          : "错误";
-
-  return (
-    <Card
-      size="small"
-      type="inner"
-      title={title}
-      className={`chat-bubble kind-${item.kind}`}
-    >
-      {item.kind === "assistant" ? (
-        item.text ? (
-          <MarkdownView content={item.text} />
-        ) : streaming ? (
-          <Text type="secondary">…</Text>
-        ) : null
-      ) : item.kind === "tool" ? (
-        <CodeViewer value={item.text} language={item.language ?? "json"} />
-      ) : item.kind === "error" ? (
-        <Alert type="error" showIcon message={item.text} />
-      ) : (
-        <MarkdownView content={item.text} />
-      )}
-    </Card>
-  );
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
 }

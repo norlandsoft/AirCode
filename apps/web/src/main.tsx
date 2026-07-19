@@ -16,8 +16,10 @@ createRoot(root).render(
       locale={zhCN}
       theme={{
         token: {
-          colorPrimary: "#0f5c4c",
-          borderRadius: 8,
+          colorPrimary: "#1f1f1f",
+          borderRadius: 10,
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif',
         },
       }}
     >
