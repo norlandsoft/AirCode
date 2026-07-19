@@ -1,0 +1,21 @@
+{
+  "name": "aircode",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "General-purpose agent platform built on Pi Agent Harness",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @aircode/shared && npm run build -w @aircode/runtime && npm run build -w @aircode/smoke-cli && npm run build:host -w @aircode/desktop && npm run build:ui -w @aircode/desktop",
+    "dev": "npm run build -w @aircode/shared && npm run build -w @aircode/runtime && npm run dev -w @aircode/desktop",
+    "smoke": "npm run start -w @aircode/smoke-cli",
+    "typecheck": "npm run typecheck -w @aircode/shared && npm run typecheck -w @aircode/runtime && npm run typecheck -w @aircode/smoke-cli && npm run typecheck -w @aircode/desktop",
+    "clean": "rm -rf packages/*/dist apps/*/dist apps/desktop/host-dist apps/desktop/src-tauri/target node_modules"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

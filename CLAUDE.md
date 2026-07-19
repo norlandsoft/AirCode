@@ -2,6 +2,47 @@
 
 - 使用中文回答所有问题
 
+## 产品目标
+
+AirCode 是基于 **Pi Agent Harness**（`@earendil-works/pi-*`）的通用智能体平台，能力对齐 Claude Code / Codex：多模型对话、工具循环、会话、Skills / Extensions。不自研 Agent Loop，运行时嵌入官方 SDK。
+
+## 技术边界
+
+- **运行时底座**：`@earendil-works/pi-coding-agent`（`createAgentSession`）+ `pi-ai` + `pi-agent-core`
+- **平台封装**：`packages/runtime`（`AgentHost`），UI 禁止直接依赖 Pi 包
+- **桌面壳**：Tauri 2（Rust 壳 + React WebView）
+- **Agent 进程**：Node sidecar（`apps/desktop/host`），通过 stdio JSON-RPC 与 Rust 通信；Rust 再以 Tauri command / event 暴露给前端
+- **契约**：`packages/shared`（Tauri command 名、事件名、DTO）
+- **冒烟**：`apps/smoke-cli`（无 UI 验证会话）
+
+## Monorepo
+
+```
+packages/shared     # Tauri 契约 / DTO
+packages/runtime    # AgentHost（Pi SDK 封装）
+apps/desktop        # Tauri + React + Node host
+apps/smoke-cli      # CLI 冒烟
+```
+
+```bash
+npm install --ignore-scripts
+npm run build -w @aircode/shared && npm run build -w @aircode/runtime
+npm run build:host -w @aircode/desktop
+npm run dev          # Tauri 桌面应用（需本机 Rust / cargo）
+npm run smoke -- "列出当前目录文件"   # CLI 冒烟（需配置 API Key）
+npm run typecheck
+```
+
+依赖安装优先 `--ignore-scripts`（与 Pi 供应链建议一致）。开发机需安装 Rust（`cargo`）与系统 Node（用于启动 agent host）。
+
+## Pi / Tauri 集成约定
+
+- 会话创建：`createAgentSession` + `ModelRuntime` + `SessionManager`（仅在 Node host）
+- 事件：Pi → `AgentEventDto` → host stdout → Rust `emit("session:event")` → 前端 `listen`
+- 前端只通过 `@tauri-apps/api` 的 `invoke` / `listen`（见 `src/lib/api.ts`），禁止直接访问 Node / Pi
+- 扩展点（自定义工具、Skills、Extensions）挂在 `runtime` / host，不进 UI 层
+- 首期权限与 Pi 默认一致（用户同权）；危险操作拦截后续再做
+
 ---
 
 ## 智能体开发规范
@@ -21,7 +62,8 @@
 - 复杂任务先列出简短计划，再逐步实现；每步保持可编译、可运行。
 - 涉及架构或技术选型时，先给出 1–2 个方案与取舍，再动手。
 - 发现需求模糊时先提问，不要假设后大规模实现。
-- 当前尚无明确产品需求时，不要自行 invent 功能、目录或架构。
+- 不要绕过 `packages/runtime` 在 UI 中直接调用 Pi SDK。
+- 不要重新引入 Electron。
 
 ### 安全边界
 
@@ -51,45 +93,36 @@
 - 全面使用 TypeScript；新增代码禁止隐式 `any`。
 - 开启并遵守 `strict`；优先用 `unknown` + 收窄，而不是 `any`。
 - 使用 ESM（`import` / `export`）；避免 CommonJS（`require`），除非对接遗留模块。
-- 公共 API、数据模型、store 状态必须有明确类型。
-- 优先 `const` / `let`，禁止 `var`；优先具名导出，便于重构与 tree-shaking。
+- 公共 API、数据模型、Tauri 载荷必须有明确类型，放在 `@aircode/shared`。
+- 优先 `const` / `let`，禁止 `var`；优先具名导出。
 
 ### 命名
 
-- 文件：组件用 `PascalCase.tsx`，工具 / store / hook 用 `camelCase.ts`（如 `useTabStore.ts`、`pathUtils.ts`）。
+- 文件：组件用 `PascalCase.tsx`，工具 / store / hook 用 `camelCase.ts`。
 - 类型 / 接口 / 组件：`PascalCase`。
 - 函数 / 变量 / 属性：`camelCase`。
 - 常量：`UPPER_SNAKE_CASE`（仅限真正的常量配置）。
-- 领域方法命名保持全仓一致，推荐 `{verb}{Noun}`（如 `readFile`、`listDirectory`）。
-- 事件 / 通道名推荐 `{module}:{action}`（如 `editor:save`）。
+- Tauri command：`{module}_{action}`；事件：`{module}:{action}`。
 
 ### 错误处理
 
-- 边界层（API / IPC / 路由 handler）捕获异常，返回明确错误结构（如 `{ error: string }` 或 Result），禁止未处理异常泄漏。
+- Host / Tauri 边界捕获异常，返回明确错误或抛给 `invoke`；前端映射为 `{ ok: false, error }`。
 - UI 层展示中文错误提示；底层日志可用英文。
 - 禁止空 `catch`；至少记录或向上传递。
 
-### React（若使用）
+### React
 
 - 仅使用函数组件 + Hooks。
-- 外部副作用与后端调用集中在 `lib/` 或 hooks 中，组件内避免散落裸调用。
-- 按关注点拆分 zustand（或同等）store，避免巨型全局 store。
-- 优先 Tailwind 工具类；自定义 CSS 集中管理，不随意新建样式体系。
-- 组件按功能目录组织：`components/{feature}/`。
-- 不要默认添加 `useMemo` / `useCallback`；遵循项目既有性能与 React Compiler 约定。
+- 所有 Agent 调用经过 `src/lib/api.ts`，禁止组件内散落 `invoke`。
+- 不要默认添加 `useMemo` / `useCallback`。
 
-### Node（若使用）
+### Tauri / Node host
 
-- 路径使用 `node:path` 与 `URL` / `fileURLToPath`，注意跨平台。
-- 子进程与长生命周期资源必须可清理（关闭、卸载、超时）。
-- 对外暴露的 API 保持最小表面积，参数做类型校验。
-
-### 样式与 UI
-
-- 沿用项目既有设计语言与组件库，不引入平行 UI 体系。
-- 用户可见字符串使用中文；保持基本无障碍与语义化标签。
+- Rust 只做进程编排与 IPC 中继，不实现 Agent 业务逻辑。
+- Node host 生命周期随应用启停；stdio JSON-RPC 保持一行一条消息。
+- 可通过 `AIRCODE_HOST_JS` 覆盖 host 脚本路径。
 
 ### 测试与质量
 
-- 纯逻辑优先单测；契约变更时同步更新类型与 mock。
-- 提交前尽量确保 `typecheck` 与 `lint` 可通过（若环境具备）。
+- 纯逻辑优先单测；契约变更时同步更新 shared、Rust 命令与 host。
+- 提交前尽量确保 `npm run typecheck` 可通过。

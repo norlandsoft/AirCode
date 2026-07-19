@@ -1,0 +1,169 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f2ec;
+  --panel: #fffdf8;
+  --ink: #1c1a16;
+  --muted: #6b655c;
+  --line: #d9d2c5;
+  --accent: #0f5c4c;
+  --accent-soft: #d8ebe5;
+  --danger: #9b2c2c;
+  --tool: #2b3a55;
+  font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(circle at top left, #efe7d8 0%, var(--bg) 45%, #e7ebe8 100%);
+  color: var(--ink);
+}
+
+body {
+  min-height: 100%;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 20px 16px;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: 0.02em;
+}
+
+.header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.transcript {
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  border-radius: 10px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-width: 100%;
+}
+
+.bubble.user {
+  background: var(--accent-soft);
+  align-self: flex-end;
+}
+
+.bubble.assistant {
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.bubble.tool {
+  background: #eef1f6;
+  border-left: 3px solid var(--tool);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--tool);
+}
+
+.bubble.error {
+  background: #f8e8e8;
+  border: 1px solid #e2b6b6;
+  color: var(--danger);
+}
+
+.role {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.composer {
+  display: grid;
+  gap: 8px;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.actions button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f7fffc;
+}
+
+.actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin: auto;
+}
