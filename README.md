@@ -1,6 +1,6 @@
 # AirCode
 
-基于 [Pi Agent Harness](https://github.com/earendil-works/pi) 的通用智能体平台。通过 **HTTP** 提供 Agent 服务，并附带 **Web 客户端**。
+基于 [Pi Agent Harness](https://github.com/earendil-works/pi) 的通用智能体平台。通过 **HTTP** 提供 Agent 服务，并附带 **Web 客户端**（antd + Monaco Editor + 自研 Markdown 组件 + 运行日志）。
 
 ## 架构
 
@@ -107,9 +107,17 @@ NODE_ENV=production npm run start
 packages/shared     # HTTP 契约与 DTO
 packages/runtime    # AgentHost（Pi SDK 封装）
 apps/server         # HTTP Agent 服务（REST + SSE）
-apps/web            # Web 客户端
+apps/web            # Web 客户端（antd / Monaco / Markdown / 运行日志）
 apps/smoke-cli      # 无 UI 冒烟入口
 ```
+
+### Web UI 组件
+
+| 组件 | 路径 | 说明 |
+|------|------|------|
+| `MarkdownView` | `apps/web/src/components/MarkdownView.tsx` | 自研 Markdown 渲染 |
+| `CodeViewer` | `apps/web/src/components/CodeViewer.tsx` | Monaco 只读代码展示 |
+| `RunLogPanel` | `apps/web/src/components/RunLogPanel.tsx` | Agent 运行日志 |
 
 ## 故障排查
 
