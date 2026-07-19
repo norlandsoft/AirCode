@@ -9,7 +9,7 @@ import type {
 } from "./session.js";
 import type { AgentEventDto } from "./events.js";
 
-/** Frontend-facing agent API (implemented via Tauri invoke + listen). */
+/** Frontend-facing agent API (implemented via HTTP REST + SSE). */
 export interface AirCodeApi {
   createSession: (
     req: CreateSessionRequest,
@@ -19,5 +19,9 @@ export interface AirCodeApi {
   abort: (req: SessionIdRequest) => Promise<ApiResponse<void>>;
   dispose: (req: SessionIdRequest) => Promise<ApiResponse<void>>;
   getState: (req: SessionIdRequest) => Promise<ApiResponse<SessionStateDto>>;
-  onSessionEvent: (listener: (event: AgentEventDto) => void) => () => void;
+  /** Subscribe to SSE events for a session. */
+  subscribeEvents: (
+    sessionId: string,
+    listener: (event: AgentEventDto) => void,
+  ) => () => void;
 }

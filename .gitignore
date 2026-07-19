@@ -3,6 +3,7 @@ node_modules/
 .pnp
 .pnp.js
 .yarn/install-state.gz
+pnpm-lock.yaml
 
 # Build
 dist/
@@ -10,12 +11,7 @@ dist-ssr/
 build/
 out/
 release/
-host-dist/
 *.local
-
-# Tauri / Rust
-apps/desktop/src-tauri/target/
-apps/desktop/src-tauri/gen/
 
 # Vite
 *.tsbuildinfo

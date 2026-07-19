@@ -1,6 +1,15 @@
 # AirCode
 
-基于 [Pi Agent Harness](https://github.com/earendil-works/pi) 的通用智能体平台。桌面端使用 Tauri 2 + React，Agent 运行时由 Node host 嵌入 `@earendil-works/pi-coding-agent`。
+基于 [Pi Agent Harness](https://github.com/earendil-works/pi) 的通用智能体平台。通过 **HTTP** 提供 Agent 服务，并附带 **Web 客户端**。
+
+## 架构
+
+```text
+Browser (apps/web)
+    │  REST + SSE
+    ▼
+HTTP Server (apps/server) ──► AgentHost (packages/runtime) ──► Pi SDK
+```
 
 ## 环境要求
 
@@ -8,16 +17,6 @@
 |------|----------|
 | Node.js | ≥ 22 |
 | npm | 随 Node 附带 |
-| Rust / Cargo | stable（通过 [rustup](https://rustup.rs)） |
-| Xcode CLT（macOS） | `xcode-select --install` |
-
-确认 Rust 优先使用 rustup：
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-rustc --version
-cargo --version
-```
 
 ## 安装依赖
 
@@ -27,32 +26,28 @@ cd AirCode
 npm install --ignore-scripts
 ```
 
-> 使用 `--ignore-scripts` 与 Pi 供应链建议一致。Agent host 依赖系统已安装的 `node`。
+> 使用 `--ignore-scripts` 与 Pi 供应链建议一致。
 
-## 开发运行（桌面应用）
+## 开发运行
 
-先构建共享包与 Node host，再启动 Tauri 开发模式：
+同时启动 HTTP 服务（默认 `8787`）与 Web 开发服务器（`5173`，`/api` 代理到后端）：
 
 ```bash
 npm run build -w @aircode/shared
 npm run build -w @aircode/runtime
-npm run build:host -w @aircode/desktop
 npm run dev
 ```
 
-或直接：
+浏览器打开：<http://127.0.0.1:5173>
+
+也可分开启动：
 
 ```bash
-npm run dev
+npm run dev:server   # http://127.0.0.1:8787
+npm run dev:web      # http://127.0.0.1:5173
 ```
 
-（根目录 `dev` 脚本会先构建 `shared` / `runtime`，再进入桌面应用。）
-
-首次启动会编译 Rust 依赖，可能较慢。窗口打开后即可与智能体对话。
-
 ### 配置模型 API Key
-
-Pi 通过环境变量或自身认证读取密钥。开发前请至少配置一种 Provider，例如：
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -60,11 +55,22 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-然后在同一终端执行 `npm run dev`。
+在同一终端执行 `npm run dev`。
+
+## HTTP API（摘要）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/health` | 健康检查 |
+| `POST` | `/api/sessions` | 创建会话 |
+| `GET` | `/api/sessions/:id` | 会话状态 |
+| `POST` | `/api/sessions/:id/prompt` | 发送提示 |
+| `POST` | `/api/sessions/:id/steer` | 运行中插入指令 |
+| `POST` | `/api/sessions/:id/abort` | 中断 |
+| `DELETE` | `/api/sessions/:id` | 销毁会话 |
+| `GET` | `/api/sessions/:id/events` | SSE 事件流 |
 
 ## CLI 冒烟（无 UI）
-
-用于验证 Agent 会话与工具循环，不启动桌面壳：
 
 ```bash
 npm run build -w @aircode/shared
@@ -73,47 +79,40 @@ export ANTHROPIC_API_KEY=sk-ant-...
 npm run smoke -- "列出当前目录的文件"
 ```
 
-## 生产构建
-
-```bash
-npm run build -w @aircode/shared
-npm run build -w @aircode/runtime
-npm run build -w @aircode/desktop
-```
-
-桌面安装包由 Tauri 输出到：
-
-```text
-apps/desktop/src-tauri/target/release/bundle/
-```
-
-仅构建前端 / host（不打包应用）可用：
+## 生产构建与运行
 
 ```bash
 npm run build
+NODE_ENV=production npm run start
 ```
+
+服务默认监听 `8787`，并在存在 `apps/web/dist` 时托管 Web 静态资源。可用 `PORT` 覆盖端口。
 
 ## 常用脚本
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | 开发模式启动桌面应用 |
+| `npm run dev` | 并行启动 server + web |
+| `npm run dev:server` | 仅 HTTP 服务 |
+| `npm run dev:web` | 仅 Web（需后端已启动） |
 | `npm run smoke -- "<prompt>"` | CLI 冒烟 |
 | `npm run typecheck` | 全仓 TypeScript 检查 |
-| `npm run build` | 构建 shared / runtime / smoke-cli / host / UI |
+| `npm run build` | 构建全部包 |
+| `npm run start` | 生产模式启动 server |
 | `npm run clean` | 清理构建产物与 `node_modules` |
 
 ## 仓库结构
 
 ```text
-packages/shared     # Tauri 契约与 DTO
+packages/shared     # HTTP 契约与 DTO
 packages/runtime    # AgentHost（Pi SDK 封装）
-apps/desktop        # Tauri + React + Node host
+apps/server         # HTTP Agent 服务（REST + SSE）
+apps/web            # Web 客户端
 apps/smoke-cli      # 无 UI 冒烟入口
 ```
 
 ## 故障排查
 
-- **`rustc` / `cargo` 找不到或版本不对**：确保 `~/.cargo/bin` 在 `PATH` 前面，并已安装 rustup stable。
-- **Agent host 启动失败**：先执行 `npm run build:host -w @aircode/desktop`，确认存在 `apps/desktop/host-dist/index.js`；可用 `AIRCODE_HOST_JS` 指定脚本路径。
 - **会话无模型 / 请求失败**：检查是否导出了对应 Provider 的 API Key。
+- **Web 连不上 API**：确认 server 已在 `8787` 监听；开发态依赖 Vite 对 `/api` 的代理。
+- **CORS**：开发态已对浏览器 Origin 开放；生产建议同域由 server 托管静态资源。

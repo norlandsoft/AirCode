@@ -25,7 +25,7 @@ interface HostedSession {
 
 /**
  * Platform runtime facade over Pi's createAgentSession SDK.
- * Keeps UI / Tauri free of direct Pi imports.
+ * Keeps HTTP server / CLI free of direct Pi imports.
  */
 export class AgentHost {
   private readonly sessions = new Map<string, HostedSession>();
