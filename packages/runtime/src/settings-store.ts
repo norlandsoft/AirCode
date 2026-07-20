@@ -20,9 +20,12 @@ export interface AirCodeSecretsFile {
   apiKeys?: Record<string, string>;
 }
 
+/** Pi auth.json shape: provider id → credential. */
+type PiAuthFile = Record<string, { type: "api_key"; key: string } | { type: string; [k: string]: unknown }>;
+
 const DEFAULT_SETTINGS: AirCodeSettingsFile = {};
 
-function aircodeDir(): string {
+export function aircodeDir(): string {
   return join(homedir(), ".aircode");
 }
 
@@ -32,6 +35,11 @@ function settingsPath(): string {
 
 function secretsPath(): string {
   return join(aircodeDir(), "secrets.json");
+}
+
+/** Auth file consumed by Pi ModelRuntime (AuthStorage). */
+export function piAuthPath(): string {
+  return join(aircodeDir(), "pi-auth.json");
 }
 
 function isConnection(value: unknown): value is ProviderConnectionConfig {
@@ -94,4 +102,38 @@ export async function saveSecrets(secrets: AirCodeSecretsFile): Promise<void> {
     encoding: "utf8",
     mode: 0o600,
   });
+}
+
+async function readPiAuthFile(): Promise<PiAuthFile> {
+  try {
+    const raw = await readFile(piAuthPath(), "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed as PiAuthFile;
+  } catch {
+    return {};
+  }
+}
+
+/** Persist provider token in Pi-compatible auth.json for ModelRuntime AuthStorage. */
+export async function writePiProviderApiKey(
+  providerId: string,
+  token: string | null,
+): Promise<void> {
+  await mkdir(aircodeDir(), { recursive: true });
+  const data = await readPiAuthFile();
+  if (token && token.trim()) {
+    data[providerId] = { type: "api_key", key: token.trim() };
+  } else {
+    delete data[providerId];
+  }
+  await writeFile(piAuthPath(), `${JSON.stringify(data, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+export async function clearPiAuthFile(): Promise<void> {
+  await mkdir(aircodeDir(), { recursive: true });
+  await writeFile(piAuthPath(), "{}\n", { encoding: "utf8", mode: 0o600 });
 }

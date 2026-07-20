@@ -19,10 +19,13 @@ import type {
 } from "@aircode/shared";
 import { mapSessionEvent } from "./map-event.js";
 import {
+  clearPiAuthFile,
   loadSecrets,
   loadSettings,
+  piAuthPath,
   saveSecrets,
   saveSettings,
+  writePiProviderApiKey,
   type AirCodeSecretsFile,
   type AirCodeSettingsFile,
   type ProviderConnectionConfig,
@@ -104,7 +107,8 @@ export class AgentHost {
     const modelRuntime = await this.getModelRuntime();
     await this.ensureConfig();
 
-    const model = this.resolveModel(modelRuntime, options.modelId ?? this.settings.defaultModelRef);
+    const model =
+      this.resolveModel(modelRuntime, options.modelId) ?? this.resolveSessionModel(modelRuntime);
 
     const { session } = await createAgentSession({
       cwd,
@@ -128,6 +132,7 @@ export class AgentHost {
   async prompt(sessionId: string, text: string): Promise<void> {
     const hosted = this.requireSession(sessionId);
     try {
+      await this.ensureSessionReady(hosted);
       await hosted.session.prompt(text);
     } catch (error) {
       this.emit({
@@ -188,6 +193,17 @@ export class AgentHost {
       throw new Error("token is required");
     }
 
+    const previousProvider = this.settings.connection?.providerId;
+    if (previousProvider && previousProvider !== providerId) {
+      await writePiProviderApiKey(previousProvider, null);
+      await runtime.removeRuntimeApiKey(previousProvider);
+      try {
+        runtime.unregisterProvider(previousProvider);
+      } catch {
+        // ignore
+      }
+    }
+
     const connection: ProviderConnectionConfig = {
       providerId,
       apiType,
@@ -201,10 +217,20 @@ export class AgentHost {
     ) {
       delete this.settings.defaultModelRef;
     }
+
+    // Default to the first model of this provider when unset.
+    if (!this.settings.defaultModelRef) {
+      const first = runtime.getModels(providerId)[0];
+      if (first) {
+        this.settings.defaultModelRef = modelRef(first.provider, first.id);
+      }
+    }
+
     this.secrets = { token };
     await saveSettings(this.settings);
     await saveSecrets(this.secrets);
     await this.applyConnection(runtime, connection, token);
+    await this.syncSessionsToDefaultModel(runtime);
 
     return this.buildModelsSettings(runtime);
   }
@@ -228,6 +254,7 @@ export class AgentHost {
     this.secrets = {};
     await saveSettings(this.settings);
     await saveSecrets(this.secrets);
+    await clearPiAuthFile();
     await runtime.refresh({ allowNetwork: false });
 
     return this.buildModelsSettings(runtime);
@@ -248,6 +275,7 @@ export class AgentHost {
     }
 
     await saveSettings(this.settings);
+    await this.syncSessionsToDefaultModel(runtime);
     return this.buildModelsSettings(runtime);
   }
 
@@ -328,17 +356,76 @@ export class AgentHost {
     return runtime.getModel(parsed.providerId, parsed.modelId);
   }
 
+  /** Prefer configured default, else first model of the connected provider. */
+  private resolveSessionModel(runtime: ModelRuntime): Model<any> | undefined {
+    const fromDefault = this.resolveModel(runtime, this.settings.defaultModelRef);
+    if (fromDefault) return fromDefault;
+
+    const providerId = this.settings.connection?.providerId;
+    if (!providerId) return undefined;
+    return runtime.getModels(providerId)[0];
+  }
+
+  private async ensureSessionReady(hosted: HostedSession): Promise<void> {
+    const runtime = await this.getModelRuntime();
+    await this.ensureConfig();
+
+    if (this.settings.connection && this.secrets.token) {
+      const providerId = this.settings.connection.providerId;
+      const authOk =
+        runtime.hasConfiguredAuth(providerId) ||
+        (await runtime.checkAuth(providerId)) !== undefined;
+      if (!authOk) {
+        await this.applyConnection(runtime, this.settings.connection, this.secrets.token);
+      }
+    }
+
+    const desired = this.resolveSessionModel(runtime);
+    if (!desired) {
+      throw new Error("未配置可用模型，请先在设置中保存模型连接并选择默认模型");
+    }
+
+    const current = hosted.session.model;
+    if (!current || current.provider !== desired.provider || current.id !== desired.id) {
+      await hosted.session.setModel(desired);
+    }
+  }
+
+  private async syncSessionsToDefaultModel(runtime: ModelRuntime): Promise<void> {
+    const desired = this.resolveSessionModel(runtime);
+    if (!desired) return;
+
+    for (const hosted of this.sessions.values()) {
+      const current = hosted.session.model;
+      if (current && current.provider === desired.provider && current.id === desired.id) {
+        continue;
+      }
+      try {
+        await hosted.session.setModel(desired);
+      } catch {
+        // Session may be streaming; prompt-time ensureSessionReady will retry.
+      }
+    }
+  }
+
   private async applyConnection(
     runtime: ModelRuntime,
     connection: ProviderConnectionConfig,
     token: string,
   ): Promise<void> {
+    // Persist into Pi AuthStorage-backed file so checkAuth/getAuth resolve natively.
+    await writePiProviderApiKey(connection.providerId, token);
+
     runtime.registerProvider(connection.providerId, {
       baseUrl: connection.baseUrl || undefined,
       api: connection.apiType as Api,
       apiKey: token,
     });
+
+    // Runtime overlay covers the already-constructed AuthStorage (file write alone
+    // does not reload its in-memory cache).
     await runtime.setRuntimeApiKey(connection.providerId, token);
+    await runtime.refresh({ allowNetwork: false });
   }
 
   private buildModelsSettings(runtime: ModelRuntime): ModelsSettingsDto {
@@ -399,12 +486,23 @@ export class AgentHost {
     if (!this.modelRuntimePromise) {
       this.modelRuntimePromise = (async () => {
         await this.ensureConfig();
+
+        // Ensure auth file exists before ModelRuntime loads AuthStorage.
+        if (this.settings.connection && this.secrets.token) {
+          await writePiProviderApiKey(this.settings.connection.providerId, this.secrets.token);
+        } else {
+          await clearPiAuthFile();
+        }
+
         const runtime = await ModelRuntime.create({
           allowModelNetwork: false,
+          authPath: piAuthPath(),
         });
+
         if (this.settings.connection && this.secrets.token) {
           await this.applyConnection(runtime, this.settings.connection, this.secrets.token);
         }
+
         this.modelRuntime = runtime;
         return runtime;
       })();
