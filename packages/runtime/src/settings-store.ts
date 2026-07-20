@@ -2,20 +2,25 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
+export interface ProviderConnectionConfig {
+  providerId: string;
+  apiType: string;
+  baseUrl: string;
+}
+
 export interface AirCodeSettingsFile {
   defaultModelRef?: string;
-  /** Model refs that the user has explicitly disabled. Missing = enabled. */
-  disabledModelRefs: string[];
+  connection?: ProviderConnectionConfig;
 }
 
 export interface AirCodeSecretsFile {
-  /** Provider id → API key. */
-  apiKeys: Record<string, string>;
+  /** Active provider API token (paired with settings.connection). */
+  token?: string;
+  /** Legacy map from earlier API-key UI; migrated on load. */
+  apiKeys?: Record<string, string>;
 }
 
-const DEFAULT_SETTINGS: AirCodeSettingsFile = {
-  disabledModelRefs: [],
-};
+const DEFAULT_SETTINGS: AirCodeSettingsFile = {};
 
 function aircodeDir(): string {
   return join(homedir(), ".aircode");
@@ -29,18 +34,27 @@ function secretsPath(): string {
   return join(aircodeDir(), "secrets.json");
 }
 
+function isConnection(value: unknown): value is ProviderConnectionConfig {
+  if (!value || typeof value !== "object") return false;
+  const c = value as Record<string, unknown>;
+  return (
+    typeof c.providerId === "string" &&
+    typeof c.apiType === "string" &&
+    typeof c.baseUrl === "string"
+  );
+}
+
 export async function loadSettings(): Promise<AirCodeSettingsFile> {
   try {
     const raw = await readFile(settingsPath(), "utf8");
     const parsed = JSON.parse(raw) as Partial<AirCodeSettingsFile>;
     return {
-      defaultModelRef: parsed.defaultModelRef,
-      disabledModelRefs: Array.isArray(parsed.disabledModelRefs)
-        ? parsed.disabledModelRefs.filter((x): x is string => typeof x === "string")
-        : [],
+      defaultModelRef:
+        typeof parsed.defaultModelRef === "string" ? parsed.defaultModelRef : undefined,
+      connection: isConnection(parsed.connection) ? parsed.connection : undefined,
     };
   } catch {
-    return { ...DEFAULT_SETTINGS, disabledModelRefs: [] };
+    return { ...DEFAULT_SETTINGS };
   }
 }
 
@@ -61,16 +75,22 @@ export async function loadSecrets(): Promise<AirCodeSecretsFile> {
                 typeof entry[0] === "string" && typeof entry[1] === "string" && entry[1].length > 0,
             ),
           )
-        : {};
-    return { apiKeys };
+        : undefined;
+
+    return {
+      token: typeof parsed.token === "string" && parsed.token.length > 0 ? parsed.token : undefined,
+      apiKeys,
+    };
   } catch {
-    return { apiKeys: {} };
+    return {};
   }
 }
 
 export async function saveSecrets(secrets: AirCodeSecretsFile): Promise<void> {
   await mkdir(aircodeDir(), { recursive: true });
-  await writeFile(secretsPath(), `${JSON.stringify(secrets, null, 2)}\n`, {
+  const payload: AirCodeSecretsFile = {};
+  if (secrets.token) payload.token = secrets.token;
+  await writeFile(secretsPath(), `${JSON.stringify(payload, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
   });

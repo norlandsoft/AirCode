@@ -316,6 +316,15 @@ body,
   width: 100%;
 }
 
+.model-connection-form {
+  max-width: 520px;
+  padding-top: 4px;
+}
+
+.model-connection-form .ant-form-item {
+  margin-bottom: 16px;
+}
+
 /* —— Right chat pane —— */
 .chat-pane {
   flex: 1;

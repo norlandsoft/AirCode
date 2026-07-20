@@ -1,46 +1,50 @@
-/** Provider + model settings DTOs for the settings UI. */
+/** Provider connection + model settings DTOs. */
 
-export interface ProviderSettingsDto {
+export interface ProviderOptionDto {
   id: string;
   name: string;
-  /** Whether auth is currently resolvable (env, stored key, oauth, …). */
-  configured: boolean;
-  /** Human-readable auth source label (e.g. ANTHROPIC_API_KEY). */
-  authLabel?: string;
-  authSource?: string;
-  /** Whether a non-empty API key is stored in auth.json (not env-only). */
-  hasStoredKey: boolean;
+  defaultBaseUrl?: string;
+  defaultApiType?: string;
 }
 
-export interface ModelSettingsDto {
+export interface ApiTypeOptionDto {
+  id: string;
+  label: string;
+}
+
+export interface ModelConnectionDto {
+  providerId: string;
+  apiType: string;
+  baseUrl: string;
+  /** Whether a token is stored (never return the raw secret). */
+  hasToken: boolean;
+}
+
+export interface ModelOptionDto {
   /** Canonical ref: `provider/id`. */
   ref: string;
   id: string;
   name: string;
   providerId: string;
-  providerName: string;
-  enabled: boolean;
-  /** Provider auth is configured so the model can be used. */
-  available: boolean;
-  reasoning: boolean;
-  contextWindow: number;
 }
 
 export interface ModelsSettingsDto {
+  providers: ProviderOptionDto[];
+  apiTypes: ApiTypeOptionDto[];
+  connection: ModelConnectionDto | null;
   defaultModelRef?: string;
-  providers: ProviderSettingsDto[];
-  models: ModelSettingsDto[];
+  /** Models available for the currently configured provider (for default model). */
+  models: ModelOptionDto[];
+}
+
+export interface SaveModelConnectionRequest {
+  providerId: string;
+  apiType: string;
+  baseUrl: string;
+  /** Omit or empty to keep the previously stored token. */
+  token?: string;
 }
 
 export interface SetDefaultModelRequest {
   modelRef: string | null;
-}
-
-export interface SetModelEnabledRequest {
-  modelRef: string;
-  enabled: boolean;
-}
-
-export interface SetProviderApiKeyRequest {
-  apiKey: string;
 }

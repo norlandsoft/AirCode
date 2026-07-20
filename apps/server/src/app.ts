@@ -41,52 +41,44 @@ export function createApp(options: CreateAppOptions = {}): { app: Hono; host: Ag
     }
   });
 
+  app.put(HttpPaths.modelConnection, async (c) => {
+    try {
+      const body = (await c.req.json()) as {
+        providerId?: string;
+        apiType?: string;
+        baseUrl?: string;
+        token?: string;
+      };
+      if (!body.providerId?.trim() || !body.apiType?.trim()) {
+        return c.json({ error: "providerId and apiType are required" }, 400);
+      }
+      const settings = await host.saveModelConnection({
+        providerId: body.providerId,
+        apiType: body.apiType,
+        baseUrl: body.baseUrl ?? "",
+        token: body.token,
+      });
+      return c.json(settings);
+    } catch (error) {
+      const message = errorMessage(error);
+      const status =
+        message.startsWith("Unknown") || message.includes("required") ? 400 : 500;
+      return c.json({ error: message }, status);
+    }
+  });
+
+  app.delete(HttpPaths.modelConnection, async (c) => {
+    try {
+      return c.json(await host.clearModelConnection());
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 500);
+    }
+  });
+
   app.put(HttpPaths.defaultModel, async (c) => {
     try {
       const body = (await c.req.json()) as { modelRef?: string | null };
       const settings = await host.setDefaultModel(body.modelRef ?? null);
-      return c.json(settings);
-    } catch (error) {
-      const message = errorMessage(error);
-      const status = message.startsWith("Unknown") ? 400 : 500;
-      return c.json({ error: message }, status);
-    }
-  });
-
-  app.put(HttpPaths.modelEnabled, async (c) => {
-    try {
-      const body = (await c.req.json()) as { modelRef?: string; enabled?: boolean };
-      if (!body.modelRef || typeof body.enabled !== "boolean") {
-        return c.json({ error: "modelRef and enabled are required" }, 400);
-      }
-      const settings = await host.setModelEnabled(body.modelRef, body.enabled);
-      return c.json(settings);
-    } catch (error) {
-      const message = errorMessage(error);
-      const status = message.startsWith("Unknown") ? 400 : 500;
-      return c.json({ error: message }, status);
-    }
-  });
-
-  app.put("/api/settings/providers/:providerId/api-key", async (c) => {
-    try {
-      const providerId = c.req.param("providerId");
-      const body = (await c.req.json()) as { apiKey?: string };
-      if (!body.apiKey?.trim()) {
-        return c.json({ error: "apiKey is required" }, 400);
-      }
-      const settings = await host.setProviderApiKey(providerId, body.apiKey);
-      return c.json(settings);
-    } catch (error) {
-      const message = errorMessage(error);
-      const status = message.startsWith("Unknown") ? 400 : 500;
-      return c.json({ error: message }, status);
-    }
-  });
-
-  app.delete("/api/settings/providers/:providerId/api-key", async (c) => {
-    try {
-      const settings = await host.clearProviderApiKey(c.req.param("providerId"));
       return c.json(settings);
     } catch (error) {
       const message = errorMessage(error);

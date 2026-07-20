@@ -6,12 +6,15 @@ import {
   SessionManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
   AgentEventDto,
+  ApiTypeOptionDto,
+  ModelConnectionDto,
+  ModelOptionDto,
   ModelsSettingsDto,
-  ModelSettingsDto,
-  ProviderSettingsDto,
+  ProviderOptionDto,
+  SaveModelConnectionRequest,
   SessionStateDto,
 } from "@aircode/shared";
 import { mapSessionEvent } from "./map-event.js";
@@ -22,9 +25,10 @@ import {
   saveSettings,
   type AirCodeSecretsFile,
   type AirCodeSettingsFile,
+  type ProviderConnectionConfig,
 } from "./settings-store.js";
 
-/** Providers shown in the Models settings UI (excludes large aggregators). */
+/** Providers offered in the connection form (excludes large aggregators). */
 const SETTINGS_PROVIDER_IDS = [
   "anthropic",
   "openai",
@@ -40,7 +44,16 @@ const SETTINGS_PROVIDER_IDS = [
   "kimi-coding",
   "cerebras",
   "ant-ling",
+  "openrouter",
 ] as const;
+
+const API_TYPE_OPTIONS: ApiTypeOptionDto[] = [
+  { id: "anthropic-messages", label: "Anthropic Messages" },
+  { id: "openai-completions", label: "OpenAI Completions" },
+  { id: "openai-responses", label: "OpenAI Responses" },
+  { id: "google-generative-ai", label: "Google Generative AI" },
+  { id: "mistral-conversations", label: "Mistral Conversations" },
+];
 
 export interface CreateHostSessionOptions {
   cwd: string;
@@ -75,8 +88,8 @@ export class AgentHost {
   private readonly listeners = new Set<AgentEventListener>();
   private modelRuntime: ModelRuntime | undefined;
   private modelRuntimePromise: Promise<ModelRuntime> | undefined;
-  private settings: AirCodeSettingsFile = { disabledModelRefs: [] };
-  private secrets: AirCodeSecretsFile = { apiKeys: {} };
+  private settings: AirCodeSettingsFile = {};
+  private secrets: AirCodeSecretsFile = {};
   private configLoaded = false;
 
   onEvent(listener: AgentEventListener): () => void {
@@ -156,6 +169,70 @@ export class AgentHost {
     return this.buildModelsSettings(runtime);
   }
 
+  async saveModelConnection(req: SaveModelConnectionRequest): Promise<ModelsSettingsDto> {
+    const runtime = await this.getModelRuntime();
+    await this.ensureConfig();
+
+    const providerId = req.providerId.trim();
+    const apiType = req.apiType.trim();
+    const baseUrl = req.baseUrl.trim();
+    if (!providerId) throw new Error("providerId is required");
+    if (!apiType) throw new Error("apiType is required");
+    if (!runtime.getProvider(providerId)) {
+      throw new Error(`Unknown provider: ${providerId}`);
+    }
+
+    const nextToken = req.token?.trim();
+    const token = nextToken || this.secrets.token;
+    if (!token) {
+      throw new Error("token is required");
+    }
+
+    const connection: ProviderConnectionConfig = {
+      providerId,
+      apiType,
+      baseUrl,
+    };
+
+    this.settings.connection = connection;
+    if (
+      this.settings.defaultModelRef &&
+      !this.settings.defaultModelRef.startsWith(`${providerId}/`)
+    ) {
+      delete this.settings.defaultModelRef;
+    }
+    this.secrets = { token };
+    await saveSettings(this.settings);
+    await saveSecrets(this.secrets);
+    await this.applyConnection(runtime, connection, token);
+
+    return this.buildModelsSettings(runtime);
+  }
+
+  async clearModelConnection(): Promise<ModelsSettingsDto> {
+    const runtime = await this.getModelRuntime();
+    await this.ensureConfig();
+
+    const previous = this.settings.connection;
+    if (previous) {
+      try {
+        runtime.unregisterProvider(previous.providerId);
+      } catch {
+        // Provider may not have been registered as an override.
+      }
+      await runtime.removeRuntimeApiKey(previous.providerId);
+    }
+
+    delete this.settings.connection;
+    delete this.settings.defaultModelRef;
+    this.secrets = {};
+    await saveSettings(this.settings);
+    await saveSecrets(this.secrets);
+    await runtime.refresh({ allowNetwork: false });
+
+    return this.buildModelsSettings(runtime);
+  }
+
   async setDefaultModel(modelRefValue: string | null): Promise<ModelsSettingsDto> {
     const runtime = await this.getModelRuntime();
     await this.ensureConfig();
@@ -171,59 +248,6 @@ export class AgentHost {
     }
 
     await saveSettings(this.settings);
-    return this.buildModelsSettings(runtime);
-  }
-
-  async setModelEnabled(modelRefValue: string, enabled: boolean): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    const parsed = parseModelRef(modelRefValue);
-    if (!parsed || !runtime.getModel(parsed.providerId, parsed.modelId)) {
-      throw new Error(`Unknown model: ${modelRefValue}`);
-    }
-
-    const disabled = new Set(this.settings.disabledModelRefs);
-    if (enabled) {
-      disabled.delete(modelRefValue);
-    } else {
-      disabled.add(modelRefValue);
-      if (this.settings.defaultModelRef === modelRefValue) {
-        delete this.settings.defaultModelRef;
-      }
-    }
-    this.settings.disabledModelRefs = [...disabled];
-    await saveSettings(this.settings);
-    return this.buildModelsSettings(runtime);
-  }
-
-  async setProviderApiKey(providerId: string, apiKey: string): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-    const trimmed = apiKey.trim();
-    if (!trimmed) {
-      throw new Error("apiKey is required");
-    }
-    if (!runtime.getProvider(providerId)) {
-      throw new Error(`Unknown provider: ${providerId}`);
-    }
-
-    this.secrets.apiKeys[providerId] = trimmed;
-    await saveSecrets(this.secrets);
-    await runtime.setRuntimeApiKey(providerId, trimmed);
-    return this.buildModelsSettings(runtime);
-  }
-
-  async clearProviderApiKey(providerId: string): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-    if (!runtime.getProvider(providerId)) {
-      throw new Error(`Unknown provider: ${providerId}`);
-    }
-
-    delete this.secrets.apiKeys[providerId];
-    await saveSecrets(this.secrets);
-    await runtime.removeRuntimeApiKey(providerId);
     return this.buildModelsSettings(runtime);
   }
 
@@ -266,6 +290,31 @@ export class AgentHost {
     const [settings, secrets] = await Promise.all([loadSettings(), loadSecrets()]);
     this.settings = settings;
     this.secrets = secrets;
+
+    // Migrate legacy apiKeys map into the single connection token.
+    if (!this.secrets.token && secrets.apiKeys) {
+      if (this.settings.connection?.providerId) {
+        const legacy = secrets.apiKeys[this.settings.connection.providerId];
+        if (legacy) {
+          this.secrets = { token: legacy };
+          await saveSecrets(this.secrets);
+        }
+      } else {
+        const first = Object.entries(secrets.apiKeys)[0];
+        if (first) {
+          const [providerId, token] = first;
+          this.settings.connection = {
+            providerId,
+            apiType: "openai-completions",
+            baseUrl: "",
+          };
+          this.secrets = { token };
+          await saveSettings(this.settings);
+          await saveSecrets(this.secrets);
+        }
+      }
+    }
+
     this.configLoaded = true;
   }
 
@@ -276,66 +325,69 @@ export class AgentHost {
     if (!ref) return undefined;
     const parsed = parseModelRef(ref);
     if (!parsed) return undefined;
-    if (this.settings.disabledModelRefs.includes(ref)) return undefined;
     return runtime.getModel(parsed.providerId, parsed.modelId);
   }
 
-  private buildModelsSettings(runtime: ModelRuntime): ModelsSettingsDto {
-    const disabled = new Set(this.settings.disabledModelRefs);
-    const availableSet = new Set(
-      runtime.getAvailableSnapshot().map((m) => modelRef(m.provider, m.id)),
-    );
+  private async applyConnection(
+    runtime: ModelRuntime,
+    connection: ProviderConnectionConfig,
+    token: string,
+  ): Promise<void> {
+    runtime.registerProvider(connection.providerId, {
+      baseUrl: connection.baseUrl || undefined,
+      api: connection.apiType as Api,
+      apiKey: token,
+    });
+    await runtime.setRuntimeApiKey(connection.providerId, token);
+  }
 
-    const providers: ProviderSettingsDto[] = [];
+  private buildModelsSettings(runtime: ModelRuntime): ModelsSettingsDto {
+    const providers: ProviderOptionDto[] = [];
     for (const providerId of SETTINGS_PROVIDER_IDS) {
       const provider = runtime.getProvider(providerId);
       if (!provider) continue;
-      const status = runtime.getProviderAuthStatus(providerId);
-      const hasStoredKey = Boolean(this.secrets.apiKeys[providerId]);
-
+      const firstModel = runtime.getModels(providerId)[0];
       providers.push({
         id: provider.id,
         name: provider.name,
-        configured: status.configured,
-        authLabel: status.label,
-        authSource: status.source,
-        hasStoredKey,
+        defaultBaseUrl: provider.baseUrl,
+        defaultApiType: firstModel?.api,
       });
     }
 
-    const models: ModelSettingsDto[] = [];
-    for (const providerId of SETTINGS_PROVIDER_IDS) {
-      const provider = runtime.getProvider(providerId);
-      if (!provider) continue;
-      for (const model of runtime.getModels(providerId)) {
-        const ref = modelRef(model.provider, model.id);
+    const connection = this.settings.connection
+      ? ({
+          providerId: this.settings.connection.providerId,
+          apiType: this.settings.connection.apiType,
+          baseUrl: this.settings.connection.baseUrl,
+          hasToken: Boolean(this.secrets.token),
+        } satisfies ModelConnectionDto)
+      : null;
+
+    const models: ModelOptionDto[] = [];
+    const providerId = connection?.providerId;
+    if (providerId) {
+      const list = runtime.getModels(providerId);
+      for (const model of list) {
         models.push({
-          ref,
+          ref: modelRef(model.provider, model.id),
           id: model.id,
           name: model.name,
           providerId: model.provider,
-          providerName: provider.name,
-          enabled: !disabled.has(ref),
-          available: availableSet.has(ref),
-          reasoning: model.reasoning,
-          contextWindow: model.contextWindow,
         });
       }
     }
 
-    models.sort((a, b) => {
-      if (a.providerName !== b.providerName) return a.providerName.localeCompare(b.providerName);
-      return a.name.localeCompare(b.name);
-    });
-
     let defaultModelRef = this.settings.defaultModelRef;
-    if (defaultModelRef && disabled.has(defaultModelRef)) {
+    if (defaultModelRef && !models.some((m) => m.ref === defaultModelRef)) {
       defaultModelRef = undefined;
     }
 
     return {
-      defaultModelRef,
       providers,
+      apiTypes: API_TYPE_OPTIONS,
+      connection,
+      defaultModelRef,
       models,
     };
   }
@@ -350,8 +402,8 @@ export class AgentHost {
         const runtime = await ModelRuntime.create({
           allowModelNetwork: false,
         });
-        for (const [providerId, apiKey] of Object.entries(this.secrets.apiKeys)) {
-          await runtime.setRuntimeApiKey(providerId, apiKey);
+        if (this.settings.connection && this.secrets.token) {
+          await this.applyConnection(runtime, this.settings.connection, this.secrets.token);
         }
         this.modelRuntime = runtime;
         return runtime;

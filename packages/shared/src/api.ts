@@ -10,9 +10,8 @@ import type {
 import type { AgentEventDto } from "./events.js";
 import type {
   ModelsSettingsDto,
+  SaveModelConnectionRequest,
   SetDefaultModelRequest,
-  SetModelEnabledRequest,
-  SetProviderApiKeyRequest,
 } from "./settings.js";
 
 /** Frontend-facing agent API (implemented via HTTP REST + SSE). */
@@ -26,13 +25,11 @@ export interface AirCodeApi {
   dispose: (req: SessionIdRequest) => Promise<ApiResponse<void>>;
   getState: (req: SessionIdRequest) => Promise<ApiResponse<SessionStateDto>>;
   getModelsSettings: () => Promise<ApiResponse<ModelsSettingsDto>>;
-  setDefaultModel: (req: SetDefaultModelRequest) => Promise<ApiResponse<ModelsSettingsDto>>;
-  setModelEnabled: (req: SetModelEnabledRequest) => Promise<ApiResponse<ModelsSettingsDto>>;
-  setProviderApiKey: (
-    providerId: string,
-    req: SetProviderApiKeyRequest,
+  saveModelConnection: (
+    req: SaveModelConnectionRequest,
   ) => Promise<ApiResponse<ModelsSettingsDto>>;
-  clearProviderApiKey: (providerId: string) => Promise<ApiResponse<ModelsSettingsDto>>;
+  clearModelConnection: () => Promise<ApiResponse<ModelsSettingsDto>>;
+  setDefaultModel: (req: SetDefaultModelRequest) => Promise<ApiResponse<ModelsSettingsDto>>;
   /** Subscribe to SSE events for a session. */
   subscribeEvents: (
     sessionId: string,

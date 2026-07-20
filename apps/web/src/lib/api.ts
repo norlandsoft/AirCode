@@ -8,11 +8,10 @@ import {
   type CreateSessionResponse,
   type ModelsSettingsDto,
   type PromptRequest,
+  type SaveModelConnectionRequest,
   type SessionIdRequest,
   type SessionStateDto,
   type SetDefaultModelRequest,
-  type SetModelEnabledRequest,
-  type SetProviderApiKeyRequest,
   type SteerRequest,
 } from "@aircode/shared";
 
@@ -88,27 +87,21 @@ export function createHttpApi(baseUrl = ""): AirCodeApi {
     getModelsSettings: () =>
       requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelsSettings}`),
 
+    saveModelConnection: (req: SaveModelConnectionRequest) =>
+      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelConnection}`, {
+        method: "PUT",
+        body: JSON.stringify(req),
+      }),
+
+    clearModelConnection: () =>
+      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelConnection}`, {
+        method: "DELETE",
+      }),
+
     setDefaultModel: (req: SetDefaultModelRequest) =>
       requestJson<ModelsSettingsDto>(`${root}${HttpPaths.defaultModel}`, {
         method: "PUT",
         body: JSON.stringify(req),
-      }),
-
-    setModelEnabled: (req: SetModelEnabledRequest) =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelEnabled}`, {
-        method: "PUT",
-        body: JSON.stringify(req),
-      }),
-
-    setProviderApiKey: (providerId: string, req: SetProviderApiKeyRequest) =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.providerApiKey(providerId)}`, {
-        method: "PUT",
-        body: JSON.stringify(req),
-      }),
-
-    clearProviderApiKey: (providerId: string) =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.providerApiKey(providerId)}`, {
-        method: "DELETE",
       }),
 
     subscribeEvents: (sessionId, listener) => {
