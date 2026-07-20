@@ -6,6 +6,7 @@ import { aircodeApi } from "./lib/api";
 import { SessionSidebar } from "./components/SessionSidebar";
 import { ChatMessage, type ChatItem } from "./components/ChatMessage";
 import { ComposerInput } from "./components/ComposerInput";
+import { SettingsPage } from "./components/SettingsPage";
 import {
   formatLogTime,
   RunLogPanel,
@@ -58,6 +59,7 @@ export function App() {
   const [creating, setCreating] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const [logOpen, setLogOpen] = useState(false);
+  const [view, setView] = useState<"chat" | "settings">("chat");
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const assistantBuffers = useRef(new Map<string, string>());
   const unsubsRef = useRef(new Map<string, () => void>());
@@ -320,6 +322,10 @@ export function App() {
     }
   }
 
+  if (view === "settings") {
+    return <SettingsPage onBack={() => setView("chat")} />;
+  }
+
   return (
     <Layout className="app-shell">
       <SessionSidebar
@@ -332,6 +338,7 @@ export function App() {
         activeId={activeId}
         onSelect={onSelectSession}
         onCreate={() => void createSession()}
+        onOpenSettings={() => setView("settings")}
         creating={creating}
       />
 

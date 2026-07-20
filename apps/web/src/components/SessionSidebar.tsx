@@ -1,5 +1,5 @@
 import { Button, Flex, Typography } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, SettingOutlined } from "@ant-design/icons";
 
 export interface SessionListItem {
   id: string;
@@ -13,6 +13,7 @@ export interface SessionSidebarProps {
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onOpenSettings: () => void;
   creating?: boolean;
 }
 
@@ -21,6 +22,7 @@ export function SessionSidebar({
   activeId,
   onSelect,
   onCreate,
+  onOpenSettings,
   creating,
 }: SessionSidebarProps) {
   return (
@@ -69,10 +71,24 @@ export function SessionSidebar({
       </div>
 
       <div className="session-sidebar-footer">
-        <Typography.Text strong>AirCode</Typography.Text>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Agent 工作区
-        </Typography.Text>
+        <div className="session-profile">
+          <div className="session-avatar">A</div>
+          <div className="session-profile-text">
+            <Typography.Text strong>AirCode</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Agent 工作区
+            </Typography.Text>
+          </div>
+          <button
+            type="button"
+            className="session-settings-btn"
+            title="设置"
+            aria-label="设置"
+            onClick={onOpenSettings}
+          >
+            <SettingOutlined />
+          </button>
+        </div>
       </div>
     </aside>
   );
