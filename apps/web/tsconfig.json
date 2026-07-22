@@ -1,13 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["vite/client"],
     "noEmit": true,
-    "rootDir": "src"
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@air/design": ["../../../AirOne/packages/design/dist/index.d.ts"],
+      "@air/design/*": ["../../../AirOne/packages/design/dist/*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*"]
 }

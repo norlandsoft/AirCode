@@ -1,35 +1,41 @@
-import { streamSSE } from "hono/streaming";
-import type { Context } from "hono";
-import type { AgentHost } from "@aircode/runtime";
-import { SseEventName, type AgentEventDto } from "@aircode/shared";
+import type { Context } from 'hono';
+import type { AgentEventDto } from '@aircode/shared';
+import { SseEventName } from '@aircode/shared';
+import { streamSSE } from 'hono/streaming';
 
-/** Subscribe to AgentHost events for one session and push them as SSE. */
-export function sessionEventStream(c: Context, host: AgentHost, sessionId: string) {
+/** 按 sessionId 过滤的 SSE 订阅 */
+export function sessionEventStream(
+  c: Context,
+  sessionId: string,
+  subscribe: (listener: (sid: string, event: AgentEventDto) => void) => () => void,
+) {
+  c.header('Content-Type', 'text/event-stream');
+  c.header('Cache-Control', 'no-cache');
+  c.header('Connection', 'keep-alive');
+
   return streamSSE(c, async (stream) => {
-    const unsubscribe = host.onEvent((event: AgentEventDto) => {
-      if (event.sessionId !== sessionId) {
-        return;
-      }
+    await stream.writeSSE({ event: SseEventName.ready, data: JSON.stringify({ sessionId }) });
+
+    const unsub = subscribe((sid, event) => {
+      if (sid !== sessionId) return;
       void stream.writeSSE({
-        event: SseEventName,
-        data: JSON.stringify(event),
+        event: SseEventName.session,
+        data: JSON.stringify({ sessionId: sid, event, at: Date.now() }),
       });
     });
 
-    try {
-      await stream.writeSSE({
-        event: "ready",
-        data: JSON.stringify({ sessionId }),
-      });
+    const ping = setInterval(() => {
+      void stream.writeSSE({ event: SseEventName.ping, data: '{}' });
+    }, 15000);
 
-      while (!stream.aborted) {
-        await stream.sleep(15_000);
-        if (!stream.aborted) {
-          await stream.writeSSE({ event: "ping", data: "{}" });
-        }
-      }
-    } finally {
-      unsubscribe();
-    }
+    stream.onAbort(() => {
+      clearInterval(ping);
+      unsub();
+    });
+
+    // 保持连接
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => resolve());
+    });
   });
 }

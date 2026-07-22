@@ -1,29 +1,11 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { ConfigProvider } from "antd";
-import zhCN from "antd/locale/zh_CN";
-import { App } from "./App";
-import "./styles.css";
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import '@air/design/style.css';
+import './styles/app.css';
+import { App } from './App';
 
-const root = document.getElementById("root");
-if (!root) {
-  throw new Error("Root element #root not found");
-}
-
-createRoot(root).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: "#1f1f1f",
-          borderRadius: 10,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif',
-        },
-      }}
-    >
-      <App />
-    </ConfigProvider>
+    <App />
   </StrictMode>,
 );

@@ -1,3 +1,3 @@
-export { AgentHost } from "./agent-host.js";
-export type { CreateHostSessionOptions, AgentEventListener } from "./agent-host.js";
-export { mapSessionEvent } from "./map-event.js";
+export { AgentHost } from './agent-host.js';
+export { readFileTree, readWorkspaceFile } from './workspace-fs.js';
+export { formatToolUseInlineTag, formatToolResultInlineTag } from './tool-tags.js';

@@ -75,3 +75,7 @@ test-results/
 *.tgz
 .temp/
 .tmp/
+.pnpm-store/
+vendor/tgz/*.tgz
+!vendor/tgz/.gitkeep
+

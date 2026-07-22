@@ -1,0 +1,317 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: #0f1115;
+  color: #e8eaed;
+  font-family: 'Space Grotesk', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.ac-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ac-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid #252830;
+  background: #14161c;
+  flex-shrink: 0;
+}
+
+.ac-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ac-brand-text {
+  font-size: 14px;
+}
+
+.ac-topbar-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #9aa0a6;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.ac-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ac-key-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #333;
+}
+
+.ac-key-badge.ok {
+  color: #8bc34a;
+  border-color: #3d5a1f;
+}
+
+.ac-key-badge.warn {
+  color: #ffb74d;
+  border-color: #5a3d1f;
+}
+
+.ac-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ac-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid #252830;
+  background: #12141a;
+  display: flex;
+  flex-direction: column;
+}
+
+.ac-sidebar-head {
+  padding: 10px;
+}
+
+.ac-session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 12px;
+  overflow: auto;
+  flex: 1;
+}
+
+.ac-session-list li {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+
+.ac-session-list li.active {
+  background: #1e2430;
+}
+
+.ac-session-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 8px 8px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.ac-session-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.ac-session-del {
+  border: 0;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ac-session-del:hover {
+  color: #ef5350;
+}
+
+.ac-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #66bb6a;
+  flex-shrink: 0;
+}
+
+.ac-empty {
+  padding: 16px;
+  color: #666;
+  font-size: 12px;
+}
+
+.ac-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ac-filetree {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #101218;
+  border-right: 1px solid #252830;
+}
+
+.ac-filetree-head {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+  border-bottom: 1px solid #252830;
+}
+
+.ac-filetree-body {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.ac-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #c5c8ce;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: default;
+  text-align: left;
+}
+
+.ac-tree-row.file {
+  cursor: pointer;
+}
+
+.ac-tree-row.file:hover,
+.ac-tree-row.file.active {
+  background: #1a2030;
+}
+
+.ac-editor-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0d0f14;
+}
+
+.ac-editor-tab {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #252830;
+  color: #bbb;
+}
+
+.ac-editor-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.ac-editor-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #777;
+  gap: 4px;
+}
+
+.ac-muted {
+  font-size: 12px;
+  color: #555;
+}
+
+.ac-icon-btn {
+  border: 0;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.ac-chat {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0f1218;
+  border-left: 1px solid #252830;
+}
+
+.ac-chat-view {
+  flex: 1;
+  min-height: 0;
+}
+
+.ac-chat-input {
+  padding: 8px 10px 12px;
+  border-top: 1px solid #252830;
+}
+
+.ac-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 8px;
+}
+
+.ac-welcome h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.ac-welcome p {
+  margin: 0 0 16px;
+  color: #888;
+  font-size: 13px;
+}
+
+.ac-welcome .air-chat-input-full {
+  width: min(520px, 100%);
+}
+
+.air-chat-input-full {
+  width: 100%;
+}

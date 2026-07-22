@@ -1,45 +1,44 @@
+import type { ChatMessageDto } from './events.js';
+
 export interface CreateSessionRequest {
-  cwd: string;
-  /** Optional model id override; otherwise Pi ModelRuntime default is used. */
-  modelId?: string;
+  cwd?: string;
+  title?: string;
 }
 
-export interface CreateSessionResponse {
-  sessionId: string;
+export interface SessionSummaryDto {
+  id: string;
+  title: string;
   cwd: string;
+  createdAt: number;
+  updatedAt: number;
+  streaming: boolean;
+  model?: string;
+}
+
+export interface SessionDetailDto extends SessionSummaryDto {
+  messages: ChatMessageDto[];
+  /** 当前流式累积内容（若正在生成） */
+  streamingContent: string;
 }
 
 export interface PromptRequest {
-  sessionId: string;
   text: string;
 }
 
-export interface SteerRequest {
-  sessionId: string;
-  text: string;
-}
-
-export interface SessionIdRequest {
-  sessionId: string;
-}
-
-export interface SessionStateDto {
-  sessionId: string;
+export interface WorkspaceDto {
   cwd: string;
-  isStreaming: boolean;
-  modelId?: string;
-  thinkingLevel?: string;
-  errorMessage?: string;
+  hasApiKey: boolean;
 }
 
-export interface ApiResult<T> {
-  ok: true;
-  data: T;
+export interface FileTreeNodeDto {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileTreeNodeDto[];
 }
 
-export interface ApiError {
-  ok: false;
-  error: string;
+export interface FileContentDto {
+  path: string;
+  content: string;
+  language?: string;
 }
-
-export type ApiResponse<T> = ApiResult<T> | ApiError;

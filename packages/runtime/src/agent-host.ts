@@ -1,512 +1,404 @@
-import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
-import {
-  createAgentSession,
-  ModelRuntime,
-  SessionManager,
-  type AgentSession,
-} from "@earendil-works/pi-coding-agent";
-import type { Api, Model } from "@earendil-works/pi-ai";
+import { randomUUID } from 'node:crypto';
 import type {
   AgentEventDto,
-  ApiTypeOptionDto,
-  ModelConnectionDto,
-  ModelOptionDto,
-  ModelsSettingsDto,
-  ProviderOptionDto,
-  SaveModelConnectionRequest,
-  SessionStateDto,
-} from "@aircode/shared";
-import { mapSessionEvent } from "./map-event.js";
-import {
-  clearPiAuthFile,
-  loadSecrets,
-  loadSettings,
-  piAuthPath,
-  saveSecrets,
-  saveSettings,
-  writePiProviderApiKey,
-  type AirCodeSecretsFile,
-  type AirCodeSettingsFile,
-  type ProviderConnectionConfig,
-} from "./settings-store.js";
+  ChatMessageDto,
+  SessionDetailDto,
+  SessionSummaryDto,
+} from '@aircode/shared';
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { formatToolResultInlineTag, formatToolUseInlineTag } from './tool-tags.js';
 
-/** Providers offered in the connection form (excludes large aggregators). */
-const SETTINGS_PROVIDER_IDS = [
-  "anthropic",
-  "openai",
-  "google",
-  "deepseek",
-  "groq",
-  "mistral",
-  "xai",
-  "moonshotai",
-  "moonshotai-cn",
-  "minimax",
-  "minimax-cn",
-  "kimi-coding",
-  "cerebras",
-  "ant-ling",
-  "openrouter",
-] as const;
+type EventListener = (sessionId: string, event: AgentEventDto) => void;
 
-const API_TYPE_OPTIONS: ApiTypeOptionDto[] = [
-  { id: "anthropic-messages", label: "Anthropic Messages" },
-  { id: "openai-completions", label: "OpenAI Completions" },
-  { id: "openai-responses", label: "OpenAI Responses" },
-  { id: "google-generative-ai", label: "Google Generative AI" },
-  { id: "mistral-conversations", label: "Mistral Conversations" },
-];
-
-export interface CreateHostSessionOptions {
-  cwd: string;
-  modelId?: string;
-}
-
-export type AgentEventListener = (event: AgentEventDto) => void;
-
-interface HostedSession {
+interface SessionRecord {
   id: string;
+  title: string;
   cwd: string;
-  session: AgentSession;
-  unsubscribe: () => void;
+  createdAt: number;
+  updatedAt: number;
+  /** Claude Code SDK session id（用于 resume） */
+  claudeSessionId?: string;
+  model?: string;
+  messages: ChatMessageDto[];
+  streaming: boolean;
+  streamingContent: string;
+  abortController?: AbortController;
 }
 
-function modelRef(providerId: string, modelId: string): string {
-  return `${providerId}/${modelId}`;
+function contentBlockToDelta(block: unknown): string {
+  if (!block || typeof block !== 'object') return '';
+  const b = block as Record<string, unknown>;
+  if (b.type === 'text' && typeof b.text === 'string') return b.text;
+  if (b.type === 'thinking' && typeof b.thinking === 'string') {
+    return `\n<think>${b.thinking}</think>\n`;
+  }
+  if (b.type === 'tool_use') {
+    const name = typeof b.name === 'string' ? b.name : 'tool';
+    const input = b.input ?? {};
+    return formatToolUseInlineTag(name, JSON.stringify(input));
+  }
+  return '';
 }
 
-function parseModelRef(ref: string): { providerId: string; modelId: string } | null {
-  const slash = ref.indexOf("/");
-  if (slash <= 0 || slash === ref.length - 1) return null;
-  return { providerId: ref.slice(0, slash), modelId: ref.slice(slash + 1) };
+function extractTextDeltaFromStreamEvent(event: unknown): string {
+  if (!event || typeof event !== 'object') return '';
+  const e = event as Record<string, unknown>;
+  if (e.type === 'content_block_delta' && e.delta && typeof e.delta === 'object') {
+    const d = e.delta as Record<string, unknown>;
+    if (d.type === 'text_delta' && typeof d.text === 'string') return d.text;
+    if (d.type === 'thinking_delta' && typeof d.thinking === 'string') {
+      // 流式 thinking：简单追加（ChatView 在未闭合时当普通文本）
+      return d.thinking;
+    }
+  }
+  if (e.type === 'content_block_start' && e.content_block) {
+    const block = e.content_block as Record<string, unknown>;
+    if (block.type === 'tool_use') {
+      const name = typeof block.name === 'string' ? block.name : 'tool';
+      // 工具参数在后续 input_json_delta 中；先占位空对象，完整版在 assistant 消息里补齐
+      return formatToolUseInlineTag(name, '{}');
+    }
+    if (block.type === 'thinking') return '\n<think>';
+  }
+  if (e.type === 'content_block_stop') {
+    // thinking 闭合由完整 assistant 消息覆盖更稳妥；此处不强制
+  }
+  return '';
 }
 
 /**
- * Platform runtime facade over Pi's createAgentSession SDK.
- * Keeps HTTP server / CLI free of direct Pi imports.
+ * Claude Agent SDK 会话宿主。
+ * 无登录：依赖进程环境 ANTHROPIC_API_KEY。
  */
 export class AgentHost {
-  private readonly sessions = new Map<string, HostedSession>();
-  private readonly listeners = new Set<AgentEventListener>();
-  private modelRuntime: ModelRuntime | undefined;
-  private modelRuntimePromise: Promise<ModelRuntime> | undefined;
-  private settings: AirCodeSettingsFile = {};
-  private secrets: AirCodeSecretsFile = {};
-  private configLoaded = false;
+  private readonly sessions = new Map<string, SessionRecord>();
+  private readonly listeners = new Set<EventListener>();
+  private readonly defaultCwd: string;
 
-  onEvent(listener: AgentEventListener): () => void {
+  constructor(options?: { defaultCwd?: string }) {
+    this.defaultCwd = options?.defaultCwd?.trim() || process.cwd();
+  }
+
+  onEvent(listener: EventListener): () => void {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private emit(sessionId: string, event: AgentEventDto): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(sessionId, event);
+      } catch (err) {
+        console.error('[AgentHost] listener error', err);
+      }
+    }
+  }
+
+  hasApiKey(): boolean {
+    return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  }
+
+  getWorkspace(): { cwd: string; hasApiKey: boolean } {
+    return { cwd: this.defaultCwd, hasApiKey: this.hasApiKey() };
+  }
+
+  listSessions(): SessionSummaryDto[] {
+    return [...this.sessions.values()]
+      .map((s) => this.toSummary(s))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  getSession(id: string): SessionDetailDto | null {
+    const s = this.sessions.get(id);
+    if (!s) return null;
+    return {
+      ...this.toSummary(s),
+      messages: [...s.messages],
+      streamingContent: s.streamingContent,
     };
   }
 
-  async createSession(options: CreateHostSessionOptions): Promise<{ sessionId: string; cwd: string }> {
-    const cwd = resolve(options.cwd);
-    const modelRuntime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    const model =
-      this.resolveModel(modelRuntime, options.modelId) ?? this.resolveSessionModel(modelRuntime);
-
-    const { session } = await createAgentSession({
+  createSession(input?: { cwd?: string; title?: string }): SessionSummaryDto {
+    const id = randomUUID();
+    const now = Date.now();
+    const cwd = input?.cwd?.trim() || this.defaultCwd;
+    const record: SessionRecord = {
+      id,
+      title: input?.title?.trim() || '新会话',
       cwd,
-      sessionManager: SessionManager.inMemory(),
-      modelRuntime,
-      model,
-    });
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+      streaming: false,
+      streamingContent: '',
+    };
+    this.sessions.set(id, record);
+    return this.toSummary(record);
+  }
 
-    const sessionId = randomUUID();
-    const unsubscribe = session.subscribe((event) => {
-      const dto = mapSessionEvent(sessionId, event);
-      if (dto) {
-        this.emit(dto);
-      }
-    });
+  deleteSession(id: string): boolean {
+    const s = this.sessions.get(id);
+    if (!s) return false;
+    s.abortController?.abort();
+    this.sessions.delete(id);
+    return true;
+  }
 
-    this.sessions.set(sessionId, { id: sessionId, cwd, session, unsubscribe });
-    return { sessionId, cwd };
+  async abort(sessionId: string): Promise<boolean> {
+    const s = this.sessions.get(sessionId);
+    if (!s) return false;
+    s.abortController?.abort();
+    s.streaming = false;
+    this.emit(sessionId, { type: 'aborted', sessionId });
+    this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+    return true;
   }
 
   async prompt(sessionId: string, text: string): Promise<void> {
-    const hosted = this.requireSession(sessionId);
-    try {
-      await this.ensureSessionReady(hosted);
-      await hosted.session.prompt(text);
-    } catch (error) {
-      this.emit({
-        type: "error",
-        sessionId,
-        message: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+    const s = this.sessions.get(sessionId);
+    if (!s) throw new Error('会话不存在');
+    if (s.streaming) throw new Error('当前会话正在生成，请先中止或等待完成');
+    if (!this.hasApiKey()) {
+      throw new Error('未配置 ANTHROPIC_API_KEY，请在环境变量或 .env 中设置');
     }
-  }
 
-  async steer(sessionId: string, text: string): Promise<void> {
-    const hosted = this.requireSession(sessionId);
-    await hosted.session.steer(text);
-  }
+    const trimmed = text.trim();
+    if (!trimmed) throw new Error('消息不能为空');
 
-  async abort(sessionId: string): Promise<void> {
-    const hosted = this.requireSession(sessionId);
-    await hosted.session.abort();
-  }
-
-  getState(sessionId: string): SessionStateDto {
-    const hosted = this.requireSession(sessionId);
-    const { session } = hosted;
-    const model = session.model;
-    return {
+    const userMsg: ChatMessageDto = {
+      id: randomUUID(),
+      role: 'user',
+      content: trimmed,
+    };
+    s.messages.push(userMsg);
+    if (s.messages.filter((m) => m.role === 'user').length === 1) {
+      s.title = trimmed.slice(0, 40) + (trimmed.length > 40 ? '…' : '');
+    }
+    s.updatedAt = Date.now();
+    s.streaming = true;
+    s.streamingContent = '';
+    this.emit(sessionId, {
+      type: 'user_message',
       sessionId,
-      cwd: hosted.cwd,
-      isStreaming: session.isStreaming,
-      modelId: model ? modelRef(model.provider, model.id) : undefined,
-      thinkingLevel: session.thinkingLevel,
-      errorMessage: session.agent.state.errorMessage,
-    };
-  }
-
-  async getModelsSettings(): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-    return this.buildModelsSettings(runtime);
-  }
-
-  async saveModelConnection(req: SaveModelConnectionRequest): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    const providerId = req.providerId.trim();
-    const apiType = req.apiType.trim();
-    const baseUrl = req.baseUrl.trim();
-    if (!providerId) throw new Error("providerId is required");
-    if (!apiType) throw new Error("apiType is required");
-    if (!runtime.getProvider(providerId)) {
-      throw new Error(`Unknown provider: ${providerId}`);
-    }
-
-    const nextToken = req.token?.trim();
-    const token = nextToken || this.secrets.token;
-    if (!token) {
-      throw new Error("token is required");
-    }
-
-    const previousProvider = this.settings.connection?.providerId;
-    if (previousProvider && previousProvider !== providerId) {
-      await writePiProviderApiKey(previousProvider, null);
-      await runtime.removeRuntimeApiKey(previousProvider);
-      try {
-        runtime.unregisterProvider(previousProvider);
-      } catch {
-        // ignore
-      }
-    }
-
-    const connection: ProviderConnectionConfig = {
-      providerId,
-      apiType,
-      baseUrl,
-    };
-
-    this.settings.connection = connection;
-    if (
-      this.settings.defaultModelRef &&
-      !this.settings.defaultModelRef.startsWith(`${providerId}/`)
-    ) {
-      delete this.settings.defaultModelRef;
-    }
-
-    // Default to the first model of this provider when unset.
-    if (!this.settings.defaultModelRef) {
-      const first = runtime.getModels(providerId)[0];
-      if (first) {
-        this.settings.defaultModelRef = modelRef(first.provider, first.id);
-      }
-    }
-
-    this.secrets = { token };
-    await saveSettings(this.settings);
-    await saveSecrets(this.secrets);
-    await this.applyConnection(runtime, connection, token);
-    await this.syncSessionsToDefaultModel(runtime);
-
-    return this.buildModelsSettings(runtime);
-  }
-
-  async clearModelConnection(): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    const previous = this.settings.connection;
-    if (previous) {
-      try {
-        runtime.unregisterProvider(previous.providerId);
-      } catch {
-        // Provider may not have been registered as an override.
-      }
-      await runtime.removeRuntimeApiKey(previous.providerId);
-    }
-
-    delete this.settings.connection;
-    delete this.settings.defaultModelRef;
-    this.secrets = {};
-    await saveSettings(this.settings);
-    await saveSecrets(this.secrets);
-    await clearPiAuthFile();
-    await runtime.refresh({ allowNetwork: false });
-
-    return this.buildModelsSettings(runtime);
-  }
-
-  async setDefaultModel(modelRefValue: string | null): Promise<ModelsSettingsDto> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    if (modelRefValue) {
-      const parsed = parseModelRef(modelRefValue);
-      if (!parsed || !runtime.getModel(parsed.providerId, parsed.modelId)) {
-        throw new Error(`Unknown model: ${modelRefValue}`);
-      }
-      this.settings.defaultModelRef = modelRefValue;
-    } else {
-      delete this.settings.defaultModelRef;
-    }
-
-    await saveSettings(this.settings);
-    await this.syncSessionsToDefaultModel(runtime);
-    return this.buildModelsSettings(runtime);
-  }
-
-  dispose(sessionId: string): void {
-    const hosted = this.sessions.get(sessionId);
-    if (!hosted) {
-      return;
-    }
-    hosted.unsubscribe();
-    hosted.session.dispose();
-    this.sessions.delete(sessionId);
-  }
-
-  disposeAll(): void {
-    for (const sessionId of [...this.sessions.keys()]) {
-      this.dispose(sessionId);
-    }
-  }
-
-  private requireSession(sessionId: string): HostedSession {
-    const hosted = this.sessions.get(sessionId);
-    if (!hosted) {
-      throw new Error(`Session not found: ${sessionId}`);
-    }
-    return hosted;
-  }
-
-  private emit(event: AgentEventDto): void {
-    for (const listener of this.listeners) {
-      try {
-        listener(event);
-      } catch {
-        // Listener failures must not break the agent loop.
-      }
-    }
-  }
-
-  private async ensureConfig(): Promise<void> {
-    if (this.configLoaded) return;
-    const [settings, secrets] = await Promise.all([loadSettings(), loadSecrets()]);
-    this.settings = settings;
-    this.secrets = secrets;
-
-    // Migrate legacy apiKeys map into the single connection token.
-    if (!this.secrets.token && secrets.apiKeys) {
-      if (this.settings.connection?.providerId) {
-        const legacy = secrets.apiKeys[this.settings.connection.providerId];
-        if (legacy) {
-          this.secrets = { token: legacy };
-          await saveSecrets(this.secrets);
-        }
-      } else {
-        const first = Object.entries(secrets.apiKeys)[0];
-        if (first) {
-          const [providerId, token] = first;
-          this.settings.connection = {
-            providerId,
-            apiType: "openai-completions",
-            baseUrl: "",
-          };
-          this.secrets = { token };
-          await saveSettings(this.settings);
-          await saveSecrets(this.secrets);
-        }
-      }
-    }
-
-    this.configLoaded = true;
-  }
-
-  private resolveModel(
-    runtime: ModelRuntime,
-    ref: string | undefined,
-  ): Model<any> | undefined {
-    if (!ref) return undefined;
-    const parsed = parseModelRef(ref);
-    if (!parsed) return undefined;
-    return runtime.getModel(parsed.providerId, parsed.modelId);
-  }
-
-  /** Prefer configured default, else first model of the connected provider. */
-  private resolveSessionModel(runtime: ModelRuntime): Model<any> | undefined {
-    const fromDefault = this.resolveModel(runtime, this.settings.defaultModelRef);
-    if (fromDefault) return fromDefault;
-
-    const providerId = this.settings.connection?.providerId;
-    if (!providerId) return undefined;
-    return runtime.getModels(providerId)[0];
-  }
-
-  private async ensureSessionReady(hosted: HostedSession): Promise<void> {
-    const runtime = await this.getModelRuntime();
-    await this.ensureConfig();
-
-    if (this.settings.connection && this.secrets.token) {
-      const providerId = this.settings.connection.providerId;
-      const authOk =
-        runtime.hasConfiguredAuth(providerId) ||
-        (await runtime.checkAuth(providerId)) !== undefined;
-      if (!authOk) {
-        await this.applyConnection(runtime, this.settings.connection, this.secrets.token);
-      }
-    }
-
-    const desired = this.resolveSessionModel(runtime);
-    if (!desired) {
-      throw new Error("未配置可用模型，请先在设置中保存模型连接并选择默认模型");
-    }
-
-    const current = hosted.session.model;
-    if (!current || current.provider !== desired.provider || current.id !== desired.id) {
-      await hosted.session.setModel(desired);
-    }
-  }
-
-  private async syncSessionsToDefaultModel(runtime: ModelRuntime): Promise<void> {
-    const desired = this.resolveSessionModel(runtime);
-    if (!desired) return;
-
-    for (const hosted of this.sessions.values()) {
-      const current = hosted.session.model;
-      if (current && current.provider === desired.provider && current.id === desired.id) {
-        continue;
-      }
-      try {
-        await hosted.session.setModel(desired);
-      } catch {
-        // Session may be streaming; prompt-time ensureSessionReady will retry.
-      }
-    }
-  }
-
-  private async applyConnection(
-    runtime: ModelRuntime,
-    connection: ProviderConnectionConfig,
-    token: string,
-  ): Promise<void> {
-    // Persist into Pi AuthStorage-backed file so checkAuth/getAuth resolve natively.
-    await writePiProviderApiKey(connection.providerId, token);
-
-    runtime.registerProvider(connection.providerId, {
-      baseUrl: connection.baseUrl || undefined,
-      api: connection.apiType as Api,
-      apiKey: token,
+      messageId: userMsg.id,
+      content: trimmed,
     });
+    this.emit(sessionId, { type: 'status', sessionId, streaming: true });
 
-    // Runtime overlay covers the already-constructed AuthStorage (file write alone
-    // does not reload its in-memory cache).
-    await runtime.setRuntimeApiKey(connection.providerId, token);
-    await runtime.refresh({ allowNetwork: false });
-  }
+    const abortController = new AbortController();
+    s.abortController = abortController;
 
-  private buildModelsSettings(runtime: ModelRuntime): ModelsSettingsDto {
-    const providers: ProviderOptionDto[] = [];
-    for (const providerId of SETTINGS_PROVIDER_IDS) {
-      const provider = runtime.getProvider(providerId);
-      if (!provider) continue;
-      const firstModel = runtime.getModels(providerId)[0];
-      providers.push({
-        id: provider.id,
-        name: provider.name,
-        defaultBaseUrl: provider.baseUrl,
-        defaultApiType: firstModel?.api,
+    let accumulated = '';
+    /** 已通过完整 assistant 消息写入的文本长度，用于避免与 stream_event 重复 */
+    let committedFromAssistant = '';
+    const seenToolUseIds = new Set<string>();
+
+    try {
+      const q = query({
+        prompt: trimmed,
+        options: {
+          cwd: s.cwd,
+          resume: s.claudeSessionId,
+          abortController,
+          includePartialMessages: true,
+          permissionMode: 'acceptEdits',
+          systemPrompt: { type: 'preset', preset: 'claude_code' },
+          settingSources: ['project'],
+        },
       });
-    }
 
-    const connection = this.settings.connection
-      ? ({
-          providerId: this.settings.connection.providerId,
-          apiType: this.settings.connection.apiType,
-          baseUrl: this.settings.connection.baseUrl,
-          hasToken: Boolean(this.secrets.token),
-        } satisfies ModelConnectionDto)
-      : null;
+      for await (const message of q) {
+        if (abortController.signal.aborted) break;
 
-    const models: ModelOptionDto[] = [];
-    const providerId = connection?.providerId;
-    if (providerId) {
-      const list = runtime.getModels(providerId);
-      for (const model of list) {
-        models.push({
-          ref: modelRef(model.provider, model.id),
-          id: model.id,
-          name: model.name,
-          providerId: model.provider,
+        if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
+          s.claudeSessionId = message.session_id;
+          s.model = message.model;
+          this.emit(sessionId, {
+            type: 'session_init',
+            sessionId,
+            model: message.model,
+            cwd: message.cwd,
+          });
+          continue;
+        }
+
+        if (message.type === 'stream_event') {
+          const delta = extractTextDeltaFromStreamEvent(message.event);
+          if (delta) {
+            // 若已有完整 assistant 块，优先以完整块为准，跳过可能重复的 stream 文本
+            if (!committedFromAssistant) {
+              accumulated += delta;
+              s.streamingContent = accumulated;
+              this.emit(sessionId, {
+                type: 'assistant_delta',
+                sessionId,
+                content: accumulated,
+                delta,
+              });
+            }
+          }
+          continue;
+        }
+
+        if (message.type === 'assistant') {
+          s.claudeSessionId = message.session_id;
+          const parts: string[] = [];
+          const content = message.message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (!block || typeof block !== 'object') continue;
+              const b = block as Record<string, unknown>;
+              if (b.type === 'tool_use' && typeof b.id === 'string') {
+                if (seenToolUseIds.has(b.id)) continue;
+                seenToolUseIds.add(b.id);
+              }
+              const piece = contentBlockToDelta(block);
+              if (piece) parts.push(piece);
+            }
+          }
+          const full = parts.join('');
+          if (full) {
+            // 完整 assistant 消息替换本轮此前 stream 累积，避免 tool 参数不完整
+            if (!committedFromAssistant) {
+              accumulated = full;
+            } else {
+              accumulated = committedFromAssistant + full;
+            }
+            committedFromAssistant = accumulated;
+            s.streamingContent = accumulated;
+            this.emit(sessionId, {
+              type: 'assistant_delta',
+              sessionId,
+              content: accumulated,
+              delta: full,
+            });
+          }
+          continue;
+        }
+
+        if (message.type === 'user') {
+          // 工具结果会以 user 消息形式回传
+          const content = message.message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (!block || typeof block !== 'object') continue;
+              const b = block as Record<string, unknown>;
+              if (b.type === 'tool_result') {
+                const detail =
+                  typeof b.content === 'string'
+                    ? b.content
+                    : Array.isArray(b.content)
+                      ? b.content
+                          .map((c) =>
+                            c && typeof c === 'object' && 'text' in c
+                              ? String((c as { text: unknown }).text)
+                              : JSON.stringify(c),
+                          )
+                          .join('\n')
+                      : JSON.stringify(b.content ?? '');
+                const tag = formatToolResultInlineTag(detail);
+                accumulated += tag;
+                committedFromAssistant = accumulated;
+                s.streamingContent = accumulated;
+                this.emit(sessionId, {
+                  type: 'assistant_delta',
+                  sessionId,
+                  content: accumulated,
+                  delta: tag,
+                });
+              }
+            }
+          }
+          continue;
+        }
+
+        if (message.type === 'result') {
+          s.claudeSessionId = message.session_id;
+          const assistantId = randomUUID();
+          const finalContent = accumulated || (message.subtype === 'success' ? message.result : '');
+          const assistantMsg: ChatMessageDto = {
+            id: assistantId,
+            role: 'assistant',
+            content: finalContent,
+          };
+          s.messages.push(assistantMsg);
+          s.streamingContent = '';
+          s.streaming = false;
+          s.updatedAt = Date.now();
+
+          if (message.subtype !== 'success' && 'errors' in message) {
+            const errText = message.errors?.join('; ') || 'Agent 执行失败';
+            this.emit(sessionId, { type: 'error', sessionId, message: errText });
+          }
+
+          this.emit(sessionId, {
+            type: 'assistant_done',
+            sessionId,
+            messageId: assistantId,
+            content: finalContent,
+            usage: {
+              inputTokens: message.usage?.input_tokens,
+              outputTokens: message.usage?.output_tokens,
+              costUsd: message.total_cost_usd,
+              turns: message.num_turns,
+            },
+          });
+          this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+        }
+      }
+
+      // 若循环因 abort 结束且尚未落库
+      if (s.streaming) {
+        if (accumulated) {
+          const assistantId = randomUUID();
+          s.messages.push({ id: assistantId, role: 'assistant', content: accumulated });
+          this.emit(sessionId, {
+            type: 'assistant_done',
+            sessionId,
+            messageId: assistantId,
+            content: accumulated,
+          });
+        }
+        s.streaming = false;
+        s.streamingContent = '';
+        this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+      }
+    } catch (err) {
+      s.streaming = false;
+      s.streamingContent = accumulated;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (accumulated) {
+        s.messages.push({
+          id: randomUUID(),
+          role: 'assistant',
+          content: accumulated,
         });
       }
+      this.emit(sessionId, { type: 'error', sessionId, message: msg });
+      this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+      throw err;
+    } finally {
+      s.abortController = undefined;
     }
-
-    let defaultModelRef = this.settings.defaultModelRef;
-    if (defaultModelRef && !models.some((m) => m.ref === defaultModelRef)) {
-      defaultModelRef = undefined;
-    }
-
-    return {
-      providers,
-      apiTypes: API_TYPE_OPTIONS,
-      connection,
-      defaultModelRef,
-      models,
-    };
   }
 
-  private async getModelRuntime(): Promise<ModelRuntime> {
-    if (this.modelRuntime) {
-      return this.modelRuntime;
+  async disposeAll(): Promise<void> {
+    for (const s of this.sessions.values()) {
+      s.abortController?.abort();
     }
-    if (!this.modelRuntimePromise) {
-      this.modelRuntimePromise = (async () => {
-        await this.ensureConfig();
+    this.sessions.clear();
+    this.listeners.clear();
+  }
 
-        // Ensure auth file exists before ModelRuntime loads AuthStorage.
-        if (this.settings.connection && this.secrets.token) {
-          await writePiProviderApiKey(this.settings.connection.providerId, this.secrets.token);
-        } else {
-          await clearPiAuthFile();
-        }
-
-        const runtime = await ModelRuntime.create({
-          allowModelNetwork: false,
-          authPath: piAuthPath(),
-        });
-
-        if (this.settings.connection && this.secrets.token) {
-          await this.applyConnection(runtime, this.settings.connection, this.secrets.token);
-        }
-
-        this.modelRuntime = runtime;
-        return runtime;
-      })();
-    }
-    return this.modelRuntimePromise;
+  private toSummary(s: SessionRecord): SessionSummaryDto {
+    return {
+      id: s.id,
+      title: s.title,
+      cwd: s.cwd,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      streaming: s.streaming,
+      model: s.model,
+    };
   }
 }

@@ -2,12 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"]
+    "rootDir": "src"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*"],
   "references": [
-    { "path": "../../packages/runtime" },
-    { "path": "../../packages/shared" }
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/runtime" }
   ]
 }

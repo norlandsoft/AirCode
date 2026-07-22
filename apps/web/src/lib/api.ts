@@ -1,133 +1,99 @@
 import {
   HttpPaths,
   SseEventName,
-  type AgentEventDto,
-  type AirCodeApi,
-  type ApiResponse,
-  type CreateSessionRequest,
-  type CreateSessionResponse,
-  type ModelsSettingsDto,
-  type PromptRequest,
-  type SaveModelConnectionRequest,
-  type SessionIdRequest,
-  type SessionStateDto,
-  type SetDefaultModelRequest,
-  type SteerRequest,
-} from "@aircode/shared";
+  type AgentEventEnvelope,
+  type FileContentDto,
+  type FileTreeNodeDto,
+  type SessionDetailDto,
+  type SessionSummaryDto,
+  type WorkspaceDto,
+} from '@aircode/shared';
 
-async function requestJson<T>(
-  input: string,
-  init?: RequestInit,
-): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(input, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-    });
-    const payload = (await response.json().catch(() => ({}))) as
-      | T
-      | { error?: string };
-
-    if (!response.ok) {
-      const error =
-        payload && typeof payload === "object" && "error" in payload && payload.error
-          ? String(payload.error)
-          : `HTTP ${response.status}`;
-      return { ok: false, error };
-    }
-
-    return { ok: true, data: payload as T };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+async function parseJson<T>(res: Response): Promise<T> {
+  const data = (await res.json()) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error || res.statusText);
   }
+  return data;
 }
 
-export function createHttpApi(baseUrl = ""): AirCodeApi {
-  const root = baseUrl.replace(/\/$/, "");
+export const api = {
+  async health(): Promise<{ ok: boolean }> {
+    const res = await fetch(HttpPaths.health);
+    return parseJson(res);
+  },
 
-  return {
-    createSession: (req: CreateSessionRequest) =>
-      requestJson<CreateSessionResponse>(`${root}${HttpPaths.sessions}`, {
-        method: "POST",
-        body: JSON.stringify(req),
-      }),
+  async workspace(): Promise<WorkspaceDto> {
+    const res = await fetch(HttpPaths.workspace);
+    return parseJson(res);
+  },
 
-    prompt: (req: PromptRequest) =>
-      requestJson<void>(`${root}${HttpPaths.prompt(req.sessionId)}`, {
-        method: "POST",
-        body: JSON.stringify({ text: req.text }),
-      }),
+  async listSessions(): Promise<SessionSummaryDto[]> {
+    const res = await fetch(HttpPaths.sessions);
+    const data = await parseJson<{ sessions: SessionSummaryDto[] }>(res);
+    return data.sessions;
+  },
 
-    steer: (req: SteerRequest) =>
-      requestJson<void>(`${root}${HttpPaths.steer(req.sessionId)}`, {
-        method: "POST",
-        body: JSON.stringify({ text: req.text }),
-      }),
+  async createSession(body?: { cwd?: string; title?: string }): Promise<SessionSummaryDto> {
+    const res = await fetch(HttpPaths.sessions, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    });
+    return parseJson(res);
+  },
 
-    abort: (req: SessionIdRequest) =>
-      requestJson<void>(`${root}${HttpPaths.abort(req.sessionId)}`, {
-        method: "POST",
-        body: JSON.stringify({}),
-      }),
+  async getSession(id: string): Promise<SessionDetailDto> {
+    const res = await fetch(HttpPaths.session(id));
+    return parseJson(res);
+  },
 
-    dispose: (req: SessionIdRequest) =>
-      requestJson<void>(`${root}${HttpPaths.session(req.sessionId)}`, {
-        method: "DELETE",
-      }),
+  async deleteSession(id: string): Promise<void> {
+    const res = await fetch(HttpPaths.session(id), { method: 'DELETE' });
+    await parseJson(res);
+  },
 
-    getState: (req: SessionIdRequest) =>
-      requestJson<SessionStateDto>(`${root}${HttpPaths.session(req.sessionId)}`),
+  async prompt(id: string, text: string): Promise<void> {
+    const res = await fetch(HttpPaths.sessionPrompt(id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    await parseJson(res);
+  },
 
-    getModelsSettings: () =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelsSettings}`),
+  async abort(id: string): Promise<void> {
+    const res = await fetch(HttpPaths.sessionAbort(id), { method: 'POST' });
+    await parseJson(res);
+  },
 
-    saveModelConnection: (req: SaveModelConnectionRequest) =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelConnection}`, {
-        method: "PUT",
-        body: JSON.stringify(req),
-      }),
+  subscribeSession(
+    id: string,
+    onEvent: (envelope: AgentEventEnvelope) => void,
+  ): () => void {
+    const es = new EventSource(HttpPaths.sessionEvents(id));
+    const handler = (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(String(ev.data)) as AgentEventEnvelope;
+        onEvent(data);
+      } catch (err) {
+        console.error('[sse] parse error', err);
+      }
+    };
+    es.addEventListener(SseEventName.session, handler as EventListener);
+    es.onerror = () => {
+      // EventSource 会自动重连
+    };
+    return () => es.close();
+  },
 
-    clearModelConnection: () =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.modelConnection}`, {
-        method: "DELETE",
-      }),
+  async fileTree(): Promise<{ cwd: string; tree: FileTreeNodeDto[] }> {
+    const res = await fetch(HttpPaths.filesTree);
+    return parseJson(res);
+  },
 
-    setDefaultModel: (req: SetDefaultModelRequest) =>
-      requestJson<ModelsSettingsDto>(`${root}${HttpPaths.defaultModel}`, {
-        method: "PUT",
-        body: JSON.stringify(req),
-      }),
-
-    subscribeEvents: (sessionId, listener) => {
-      const source = new EventSource(`${root}${HttpPaths.events(sessionId)}`);
-
-      const onSession = (event: MessageEvent<string>): void => {
-        try {
-          const payload = JSON.parse(event.data) as AgentEventDto;
-          listener(payload);
-        } catch {
-          // Ignore malformed SSE payloads.
-        }
-      };
-
-      source.addEventListener(SseEventName, onSession as EventListener);
-
-      source.onerror = () => {
-        // Browser will auto-reconnect; surface nothing unless closed by client.
-      };
-
-      return () => {
-        source.removeEventListener(SseEventName, onSession as EventListener);
-        source.close();
-      };
-    },
-  };
-}
-
-export const aircodeApi = createHttpApi();
+  async fileContent(path: string): Promise<FileContentDto> {
+    const res = await fetch(`${HttpPaths.fileContent}?path=${encodeURIComponent(path)}`);
+    return parseJson(res);
+  },
+};

@@ -1,54 +1,61 @@
-/**
- * Serializable agent events pushed from main/runtime to the UI.
- * Mirrors Pi AgentSession / agent-core events at a stable DTO boundary.
- */
+/** 前端 ChatView 兼容的消息 */
+export interface ChatMessageDto {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
 
+/** Agent 运行事件（经 SSE 推送） */
 export type AgentEventDto =
-  | { type: "agent_start"; sessionId: string }
-  | { type: "agent_end"; sessionId: string }
-  | { type: "turn_start"; sessionId: string }
-  | { type: "turn_end"; sessionId: string }
   | {
-      type: "message_start";
+      type: 'session_init';
       sessionId: string;
-      role: string;
+      model?: string;
+      cwd?: string;
     }
   | {
-      type: "message_update";
+      type: 'user_message';
       sessionId: string;
-      delta?: string;
-      role?: string;
+      messageId: string;
+      content: string;
     }
   | {
-      type: "message_end";
+      type: 'assistant_delta';
       sessionId: string;
-      role: string;
-      text?: string;
+      /** 本轮累积全文（含 <tool_use>/<tool_result> 内联标签） */
+      content: string;
+      /** 增量片段 */
+      delta: string;
     }
   | {
-      type: "tool_execution_start";
+      type: 'assistant_done';
       sessionId: string;
-      toolCallId: string;
-      toolName: string;
-      args?: unknown;
+      messageId: string;
+      content: string;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        costUsd?: number;
+        turns?: number;
+      };
     }
   | {
-      type: "tool_execution_update";
-      sessionId: string;
-      toolCallId: string;
-      toolName: string;
-      partialText?: string;
-    }
-  | {
-      type: "tool_execution_end";
-      sessionId: string;
-      toolCallId: string;
-      toolName: string;
-      isError?: boolean;
-      resultText?: string;
-    }
-  | {
-      type: "error";
+      type: 'error';
       sessionId: string;
       message: string;
+    }
+  | {
+      type: 'aborted';
+      sessionId: string;
+    }
+  | {
+      type: 'status';
+      sessionId: string;
+      streaming: boolean;
     };
+
+export interface AgentEventEnvelope {
+  sessionId: string;
+  event: AgentEventDto;
+  at: number;
+}
