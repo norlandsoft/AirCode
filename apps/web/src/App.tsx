@@ -23,34 +23,23 @@ import { JobsPanel } from './components/JobsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ProjectPicker } from './components/ProjectPicker';
 
-type NavTab = 'sessions' | 'files' | 'editor' | 'chat' | 'git' | 'jobs' | 'settings' | 'project';
-type LayoutMode = 'phone' | 'pad' | 'desktop';
+/** 工作区主 Tab（手机额外含项目 / 设置） */
+type WorkTab = 'chat' | 'git' | 'code' | 'cicd' | 'project' | 'settings';
 
-function useLayoutMode(): LayoutMode {
-  const [mode, setMode] = useState<LayoutMode>(() => {
-    if (typeof window === 'undefined') return 'desktop';
-    const w = window.innerWidth;
-    if (w < 768) return 'phone';
-    if (w < 1024) return 'pad';
-    return 'desktop';
-  });
-
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  );
   useEffect(() => {
-    const onResize = () => {
-      const w = window.innerWidth;
-      if (w < 768) setMode('phone');
-      else if (w < 1024) setMode('pad');
-      else setMode('desktop');
-    };
+    const onResize = () => setPhone(window.innerWidth < 768);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  return mode;
+  return phone;
 }
 
 export function App() {
-  const layout = useLayoutMode();
+  const isPhone = useIsPhone();
   const [workspace, setWorkspace] = useState<WorkspaceDto | null>(null);
   const [sessions, setSessions] = useState<SessionSummaryDto[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -63,20 +52,17 @@ export function App() {
     content: string;
     language?: string;
   } | null>(null);
-  const [nav, setNav] = useState<NavTab>('chat');
-  const [leftTab, setLeftTab] = useState<'files' | 'git'>('files');
+  const [workTab, setWorkTab] = useState<WorkTab>('chat');
 
   const viewRef = useRef<HTMLDivElement>(null);
   const [chatSize, setChatSize] = useState({ h: 480, w: 640 });
 
   const refreshSessions = useCallback(async () => {
-    const list = await api.listSessions();
-    setSessions(list);
+    setSessions(await api.listSessions());
   }, []);
 
   const refreshTree = useCallback(async () => {
-    const files = await api.fileTree(4);
-    setTree(files.tree);
+    setTree((await api.fileTree(4)).tree);
   }, []);
 
   const bootstrap = useCallback(async () => {
@@ -84,7 +70,7 @@ export function App() {
       const ws = await api.workspace();
       setWorkspace(ws);
       if (!ws.hasProject) {
-        setNav('project');
+        setWorkTab('project');
         setSessions([]);
         setTree([]);
         return;
@@ -93,7 +79,7 @@ export function App() {
       setSessions(list);
       setTree(files.tree);
       if (!ws.hasApiKey) {
-        message.warning('未配置 API Key，请打开「设置」填写');
+        message.warning('未配置 API Key，请打开设置填写');
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
@@ -105,6 +91,11 @@ export function App() {
   }, [bootstrap]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = 'light';
+    document.documentElement.style.colorScheme = 'light';
+  }, []);
+
+  useEffect(() => {
     const el = viewRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
@@ -113,7 +104,7 @@ export function App() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [activeId, nav, layout]);
+  }, [activeId, workTab]);
 
   useEffect(() => {
     if (!activeId) return;
@@ -129,11 +120,7 @@ export function App() {
         message.error(err instanceof Error ? err.message : String(err));
       }
     })();
-
-    const unsub = api.subscribeSession(activeId, (envelope) => {
-      applyEvent(envelope);
-    });
-
+    const unsub = api.subscribeSession(activeId, (envelope) => applyEvent(envelope));
     return () => {
       cancelled = true;
       unsub();
@@ -190,7 +177,7 @@ export function App() {
       setChatList([]);
       setLastContent('');
       setLoading(false);
-      setNav('chat');
+      setWorkTab('chat');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -221,7 +208,7 @@ export function App() {
       }
       await api.prompt(id, text);
       setLoading(true);
-      setNav('chat');
+      setWorkTab('chat');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -241,8 +228,7 @@ export function App() {
     try {
       const file = await api.fileContent(path);
       setOpenFile({ path: file.path, content: file.content, language: file.language });
-      setNav('editor');
-      if (layout !== 'phone') setLeftTab('files');
+      setWorkTab('code');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -250,300 +236,248 @@ export function App() {
 
   const cwdLabel = workspace?.cwd ?? '未选择项目';
   const needsProject = !workspace?.hasProject;
+  const activeTab: WorkTab = needsProject && workTab !== 'settings' ? 'project' : workTab;
+
+  const workTabs: { id: WorkTab; label: string }[] = isPhone
+    ? [
+        { id: 'chat', label: '对话' },
+        { id: 'git', label: 'Git' },
+        { id: 'code', label: '代码' },
+        { id: 'cicd', label: 'CI/CD' },
+        { id: 'project', label: '项目' },
+        { id: 'settings', label: '设置' },
+      ]
+    : [
+        { id: 'chat', label: '对话' },
+        { id: 'git', label: 'Git' },
+        { id: 'code', label: '代码' },
+        { id: 'cicd', label: 'CI/CD' },
+      ];
 
   const chatPane = (
-    <div className="ac-chat">
-      {!activeId && chatList.length === 0 && !loading ? (
-        <div className="ac-welcome">
-          <h1>AirCode</h1>
-          <p>远程开发 · Claude Code · Git · CI/CD</p>
-          <ChatInput
-            className="air-chat-input-full"
-            onSend={handleSend}
-            finished
-            showAttachment={false}
-            placeholder="描述你想完成的任务…"
-          />
-        </div>
-      ) : (
-        <>
-          <div ref={viewRef} className="ac-chat-view">
-            <ChatView
-              height={chatSize.h}
-              width={chatSize.w}
-              chatList={chatList}
-              lastContent={lastContent}
-              loading={loading}
-              assistantName="Claude"
-              contentPadding={12}
-            />
-          </div>
-          <div className="ac-chat-input">
-            <ChatInput
-              className="air-chat-input-full"
-              onSend={handleSend}
-              onStop={handleStop}
-              finished={!loading}
-              disabled={false}
-              showAttachment={false}
-              placeholder="继续对话…"
-            />
-          </div>
-        </>
-      )}
-    </div>
-  );
-
-  const editorPane = openFile ? (
-    <EditorPane
-      path={openFile.path}
-      content={openFile.content}
-      language={openFile.language}
-      onClose={() => setOpenFile(null)}
-      onSaved={(path, content) => {
-        setOpenFile((prev) => (prev ? { ...prev, path, content } : prev));
-        void refreshTree();
-      }}
-    />
-  ) : (
-    <div className="ac-editor-empty">
-      <p>从文件树打开文件进行编辑</p>
-      <p className="ac-muted">支持 ⌘S / Ctrl+S 保存 · Agent 也可直接改文件</p>
-      <Button size="sm" onClick={() => setNav(layout === 'phone' ? 'files' : 'chat')}>
-        打开文件树
-      </Button>
-    </div>
-  );
-
-  const filesPane = (
-    <div className="ac-left-stack">
-      {layout === 'desktop' ? (
-        <div className="ac-left-tabs">
-          <button
-            type="button"
-            className={leftTab === 'files' ? 'active' : ''}
-            onClick={() => setLeftTab('files')}
-          >
-            文件
-          </button>
-          <button
-            type="button"
-            className={leftTab === 'git' ? 'active' : ''}
-            onClick={() => setLeftTab('git')}
-          >
-            Git
-          </button>
-        </div>
-      ) : null}
-      {layout === 'desktop' && leftTab === 'git' ? (
-        <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />
-      ) : (
-        <FileTree
-          tree={tree}
-          onOpen={(p) => void handleOpenFile(p)}
-          activePath={openFile?.path}
-          onRefresh={() => void refreshTree()}
-        />
-      )}
-    </div>
-  );
-
-  function renderDesktop() {
-    if (nav === 'project' || needsProject) {
-      return (
-        <div className="ac-body">
-          <div className="ac-main ac-settings-full">
-            <ProjectPicker
-              onSelected={() => {
-                void bootstrap().then(() => setNav('chat'));
-              }}
-            />
-          </div>
-        </div>
-      );
-    }
-    if (nav === 'settings') {
-      return (
-        <div className="ac-body">
-          <div className="ac-main ac-settings-full">
-            <SettingsPanel
-              onClose={() => setNav('chat')}
-              onSaved={() => {
-                void api.workspace().then(setWorkspace);
-              }}
-            />
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div className="ac-body">
+    <div className="ac-chat-layout">
+      {!isPhone ? (
         <SessionSidebar
           sessions={sessions}
           activeId={activeId}
           onNew={() => void handleNewSession()}
-          onSelect={(id) => {
-            setActiveId(id);
-            setNav('chat');
-          }}
+          onSelect={(id) => setActiveId(id)}
           onDelete={(id) => void handleDeleteSession(id)}
         />
-        <div className="ac-main">
-          <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
-            <Splitter.Panel defaultSize={240} min={180} max={400}>
-              {filesPane}
-            </Splitter.Panel>
-            <Splitter.Panel min={240}>
-              {nav === 'jobs' ? <JobsPanel /> : editorPane}
-            </Splitter.Panel>
-            <Splitter.Panel defaultSize={420} min={300}>
-              {chatPane}
-            </Splitter.Panel>
-          </Splitter>
-        </div>
-      </div>
-    );
-  }
-
-  function renderPad() {
-    if (nav === 'project' || needsProject) {
-      return (
-        <div className="ac-body ac-body-pad">
-          <div className="ac-main">
-            <ProjectPicker
-              onSelected={() => {
-                void bootstrap().then(() => setNav('chat'));
-              }}
+      ) : null}
+      <div className="ac-chat">
+        {isPhone ? (
+          <div className="ac-chat-mobile-sessions">
+            <Button size="sm" type="primary" onClick={() => void handleNewSession()}>
+              新会话
+            </Button>
+            <select
+              className="ac-select"
+              value={activeId ?? ''}
+              onChange={(e) => setActiveId(e.target.value || null)}
+            >
+              <option value="">选择会话…</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {!activeId && chatList.length === 0 && !loading ? (
+          <div className="ac-welcome">
+            <h1>Claude Code</h1>
+            <p>描述任务，Agent 将在当前项目目录中执行</p>
+            <ChatInput
+              className="air-chat-input-full"
+              onSend={handleSend}
+              finished
+              showAttachment={false}
+              placeholder="描述你想完成的任务…"
             />
           </div>
-        </div>
-      );
-    }
-    return (
-      <div className="ac-body ac-body-pad">
-        <div className="ac-main">
-          {nav === 'sessions' ? (
-            <SessionSidebar
-              sessions={sessions}
-              activeId={activeId}
-              onNew={() => void handleNewSession()}
-              onSelect={(id) => {
-                setActiveId(id);
-                setNav('chat');
-              }}
-              onDelete={(id) => void handleDeleteSession(id)}
-            />
-          ) : null}
-          {nav === 'files' || nav === 'git' ? (
-            nav === 'git' ? (
-              <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />
-            ) : (
-              <FileTree
-                tree={tree}
-                onOpen={(p) => void handleOpenFile(p)}
-                activePath={openFile?.path}
-                onRefresh={() => void refreshTree()}
+        ) : (
+          <>
+            <div ref={viewRef} className="ac-chat-view">
+              <ChatView
+                height={chatSize.h}
+                width={chatSize.w}
+                chatList={chatList}
+                lastContent={lastContent}
+                loading={loading}
+                assistantName="Claude"
+                contentPadding={12}
               />
-            )
-          ) : null}
-          {nav === 'editor' ? editorPane : null}
-          {nav === 'chat' ? chatPane : null}
-          {nav === 'jobs' ? <JobsPanel /> : null}
-          {nav === 'settings' ? (
-            <SettingsPanel
-              onClose={() => setNav('chat')}
-              onSaved={() => {
-                void api.workspace().then(setWorkspace);
+            </div>
+            <div className="ac-chat-input">
+              <ChatInput
+                className="air-chat-input-full"
+                onSend={handleSend}
+                onStop={handleStop}
+                finished={!loading}
+                disabled={false}
+                showAttachment={false}
+                placeholder="继续对话…"
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const codePane = (
+    <div className="ac-code-layout">
+      {isPhone ? (
+        <>
+          {!openFile ? (
+            <FileTree
+              tree={tree}
+              onOpen={(p) => void handleOpenFile(p)}
+              onRefresh={() => void refreshTree()}
+            />
+          ) : (
+            <EditorPane
+              path={openFile.path}
+              content={openFile.content}
+              language={openFile.language}
+              onClose={() => setOpenFile(null)}
+              onSaved={(path, content) => {
+                setOpenFile((prev) => (prev ? { ...prev, path, content } : prev));
+                void refreshTree();
               }}
             />
-          ) : null}
-        </div>
-      </div>
-    );
-  }
+          )}
+        </>
+      ) : (
+        <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
+          <Splitter.Panel defaultSize={260} min={180} max={420}>
+            <FileTree
+              tree={tree}
+              onOpen={(p) => void handleOpenFile(p)}
+              activePath={openFile?.path}
+              onRefresh={() => void refreshTree()}
+            />
+          </Splitter.Panel>
+          <Splitter.Panel min={280}>
+            {openFile ? (
+              <EditorPane
+                path={openFile.path}
+                content={openFile.content}
+                language={openFile.language}
+                onClose={() => setOpenFile(null)}
+                onSaved={(path, content) => {
+                  setOpenFile((prev) => (prev ? { ...prev, path, content } : prev));
+                  void refreshTree();
+                }}
+              />
+            ) : (
+              <div className="ac-editor-empty">
+                <p>从左侧打开文件</p>
+                <p className="ac-muted">支持 ⌘S / Ctrl+S 保存</p>
+              </div>
+            )}
+          </Splitter.Panel>
+        </Splitter>
+      )}
+    </div>
+  );
 
-  function renderPhone() {
-    return renderPad();
+  function renderWork() {
+    switch (activeTab) {
+      case 'chat':
+        return chatPane;
+      case 'git':
+        return <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />;
+      case 'code':
+        return codePane;
+      case 'cicd':
+        return <JobsPanel />;
+      case 'project':
+        return (
+          <ProjectPicker
+            onSelected={() => {
+              void bootstrap().then(() => setWorkTab('chat'));
+            }}
+          />
+        );
+      case 'settings':
+        return (
+          <SettingsPanel
+            onClose={isPhone ? undefined : () => setWorkTab('chat')}
+            onSaved={() => {
+              void api.workspace().then(setWorkspace);
+            }}
+          />
+        );
+      default:
+        return null;
+    }
   }
-
-  const tabs: { id: NavTab; label: string }[] = [
-    { id: 'project', label: '项目' },
-    { id: 'sessions', label: '会话' },
-    { id: 'files', label: '文件' },
-    { id: 'editor', label: '编辑' },
-    { id: 'chat', label: '对话' },
-    { id: 'git', label: 'Git' },
-    { id: 'jobs', label: '任务' },
-    { id: 'settings', label: '设置' },
-  ];
 
   return (
-    <div className={`ac-root ac-layout-${layout}`}>
+    <div className={`ac-root ${isPhone ? 'ac-phone' : 'ac-desktop'}`} data-theme="light">
+      {/* 顶栏 40px：桌面含项目 / 设置；手机仅品牌与状态 */}
       <header className="ac-topbar">
         <div className="ac-brand">
-          <Icon name="code" size={18} />
+          <Icon name="workspace" size={16} />
           <span className="ac-brand-text">AirCode</span>
         </div>
-        <div className="ac-topbar-path" title={cwdLabel}>
-          {cwdLabel}
-        </div>
-        <div className="ac-topbar-actions">
-          {layout === 'desktop' ? (
-            <>
+
+        {!isPhone ? (
+          <>
+            <button
+              type="button"
+              className="ac-topbar-project"
+              title={cwdLabel}
+              onClick={() => setWorkTab('project')}
+            >
+              <Icon name="project" size={14} />
+              <span>{cwdLabel}</span>
+            </button>
+            <div className="ac-topbar-actions">
+              <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
+                {workspace?.hasApiKey
+                  ? workspace.defaultModel ?? '已配置'
+                  : '无 Key'}
+              </span>
               <Button
                 size="sm"
-                type={nav === 'jobs' ? 'primary' : 'default'}
-                onClick={() => setNav(nav === 'jobs' ? 'editor' : 'jobs')}
-              >
-                任务
-              </Button>
-              <Button
-                size="sm"
-                type={leftTab === 'git' ? 'primary' : 'default'}
-                onClick={() => setLeftTab(leftTab === 'git' ? 'files' : 'git')}
-              >
-                Git
-              </Button>
-              <Button
-                size="sm"
-                type={nav === 'project' ? 'primary' : 'default'}
-                onClick={() => setNav('project')}
-              >
-                项目
-              </Button>
-              <Button
-                size="sm"
-                type={nav === 'settings' ? 'primary' : 'default'}
-                onClick={() => setNav(nav === 'settings' ? 'chat' : 'settings')}
+                type={workTab === 'settings' ? 'primary' : 'default'}
+                onClick={() => setWorkTab(workTab === 'settings' ? 'chat' : 'settings')}
               >
                 设置
               </Button>
-            </>
-          ) : null}
-          <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
-            {workspace?.hasApiKey
-              ? `Key · ${workspace.defaultModel ?? 'model'}`
-              : '无 Key'}
-          </span>
-        </div>
+            </div>
+          </>
+        ) : (
+          <div className="ac-topbar-actions">
+            <span className="ac-topbar-path" title={cwdLabel}>
+              {cwdLabel}
+            </span>
+            <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
+              {workspace?.hasApiKey ? 'Key' : '无 Key'}
+            </span>
+          </div>
+        )}
       </header>
 
-      {layout !== 'desktop' ? (
-        <nav className="ac-mobile-nav">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={nav === t.id ? 'active' : ''}
-              onClick={() => setNav(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
+      {/* 工作区 Tab */}
+      <nav className="ac-work-tabs" aria-label="工作区">
+        {workTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={activeTab === t.id ? 'active' : ''}
+            onClick={() => setWorkTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      {layout === 'desktop' ? renderDesktop() : layout === 'pad' ? renderPad() : renderPhone()}
+      <main className="ac-work">{renderWork()}</main>
     </div>
   );
 }
