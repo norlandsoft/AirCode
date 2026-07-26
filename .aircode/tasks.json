@@ -1,0 +1,22 @@
+{
+  "tasks": [
+    {
+      "id": "typecheck",
+      "name": "Typecheck",
+      "command": "npm run typecheck",
+      "description": "TypeScript 类型检查"
+    },
+    {
+      "id": "build",
+      "name": "Build",
+      "command": "npm run build",
+      "description": "编译 shared / runtime / server"
+    },
+    {
+      "id": "test",
+      "name": "Test",
+      "command": "npm test",
+      "description": "运行测试（若项目已配置）"
+    }
+  ]
+}

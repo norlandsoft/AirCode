@@ -3,7 +3,6 @@ import {
   Button,
   ChatInput,
   ChatView,
-  CodeEditor,
   Icon,
   Splitter,
   message,
@@ -18,8 +17,38 @@ import type {
 import { api } from './lib/api';
 import { SessionSidebar } from './components/SessionSidebar';
 import { FileTree } from './components/FileTree';
+import { EditorPane } from './components/EditorPane';
+import { GitPanel } from './components/GitPanel';
+import { JobsPanel } from './components/JobsPanel';
+
+type NavTab = 'sessions' | 'files' | 'editor' | 'chat' | 'git' | 'jobs';
+type LayoutMode = 'phone' | 'pad' | 'desktop';
+
+function useLayoutMode(): LayoutMode {
+  const [mode, setMode] = useState<LayoutMode>(() => {
+    if (typeof window === 'undefined') return 'desktop';
+    const w = window.innerWidth;
+    if (w < 768) return 'phone';
+    if (w < 1024) return 'pad';
+    return 'desktop';
+  });
+
+  useEffect(() => {
+    const onResize = () => {
+      const w = window.innerWidth;
+      if (w < 768) setMode('phone');
+      else if (w < 1024) setMode('pad');
+      else setMode('desktop');
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  return mode;
+}
 
 export function App() {
+  const layout = useLayoutMode();
   const [workspace, setWorkspace] = useState<WorkspaceDto | null>(null);
   const [sessions, setSessions] = useState<SessionSummaryDto[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -27,10 +56,13 @@ export function App() {
   const [lastContent, setLastContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [tree, setTree] = useState<FileTreeNodeDto[]>([]);
-  const [openFile, setOpenFile] = useState<{ path: string; content: string; language?: string } | null>(
-    null,
-  );
-  const [showFiles, setShowFiles] = useState(true);
+  const [openFile, setOpenFile] = useState<{
+    path: string;
+    content: string;
+    language?: string;
+  } | null>(null);
+  const [nav, setNav] = useState<NavTab>('chat');
+  const [leftTab, setLeftTab] = useState<'files' | 'git'>('files');
 
   const viewRef = useRef<HTMLDivElement>(null);
   const [chatSize, setChatSize] = useState({ h: 480, w: 640 });
@@ -40,13 +72,18 @@ export function App() {
     setSessions(list);
   }, []);
 
+  const refreshTree = useCallback(async () => {
+    const files = await api.fileTree(4);
+    setTree(files.tree);
+  }, []);
+
   useEffect(() => {
     void (async () => {
       try {
         const [ws, list, files] = await Promise.all([
           api.workspace(),
           api.listSessions(),
-          api.fileTree(),
+          api.fileTree(4),
         ]);
         setWorkspace(ws);
         setSessions(list);
@@ -69,7 +106,7 @@ export function App() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [activeId]);
+  }, [activeId, nav, layout]);
 
   useEffect(() => {
     if (!activeId) return;
@@ -118,6 +155,7 @@ export function App() {
         setLastContent('');
         setLoading(false);
         void refreshSessions();
+        void refreshTree();
         break;
       case 'status':
         setLoading(event.streaming);
@@ -145,13 +183,10 @@ export function App() {
       setChatList([]);
       setLastContent('');
       setLoading(false);
+      setNav('chat');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
-  }
-
-  async function handleSelectSession(id: string) {
-    setActiveId(id);
   }
 
   async function handleDeleteSession(id: string) {
@@ -179,6 +214,7 @@ export function App() {
       }
       await api.prompt(id, text);
       setLoading(true);
+      setNav('chat');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
       setLoading(false);
@@ -198,6 +234,8 @@ export function App() {
     try {
       const file = await api.fileContent(path);
       setOpenFile({ path: file.path, content: file.content, language: file.language });
+      setNav('editor');
+      if (layout !== 'phone') setLeftTab('files');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -205,8 +243,184 @@ export function App() {
 
   const cwdLabel = workspace?.cwd ?? '…';
 
+  const chatPane = (
+    <div className="ac-chat">
+      {!activeId && chatList.length === 0 && !loading ? (
+        <div className="ac-welcome">
+          <h1>AirCode</h1>
+          <p>远程开发 · Claude Code · Git · CI/CD</p>
+          <ChatInput
+            className="air-chat-input-full"
+            onSend={handleSend}
+            finished
+            showAttachment={false}
+            placeholder="描述你想完成的任务…"
+          />
+        </div>
+      ) : (
+        <>
+          <div ref={viewRef} className="ac-chat-view">
+            <ChatView
+              height={chatSize.h}
+              width={chatSize.w}
+              chatList={chatList}
+              lastContent={lastContent}
+              loading={loading}
+              assistantName="Claude"
+              contentPadding={12}
+            />
+          </div>
+          <div className="ac-chat-input">
+            <ChatInput
+              className="air-chat-input-full"
+              onSend={handleSend}
+              onStop={handleStop}
+              finished={!loading}
+              disabled={false}
+              showAttachment={false}
+              placeholder="继续对话…"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const editorPane = openFile ? (
+    <EditorPane
+      path={openFile.path}
+      content={openFile.content}
+      language={openFile.language}
+      onClose={() => setOpenFile(null)}
+      onSaved={(path, content) => {
+        setOpenFile((prev) => (prev ? { ...prev, path, content } : prev));
+        void refreshTree();
+      }}
+    />
+  ) : (
+    <div className="ac-editor-empty">
+      <p>从文件树打开文件进行编辑</p>
+      <p className="ac-muted">支持 ⌘S / Ctrl+S 保存 · Agent 也可直接改文件</p>
+      <Button size="sm" onClick={() => setNav(layout === 'phone' ? 'files' : 'chat')}>
+        打开文件树
+      </Button>
+    </div>
+  );
+
+  const filesPane = (
+    <div className="ac-left-stack">
+      {layout === 'desktop' ? (
+        <div className="ac-left-tabs">
+          <button
+            type="button"
+            className={leftTab === 'files' ? 'active' : ''}
+            onClick={() => setLeftTab('files')}
+          >
+            文件
+          </button>
+          <button
+            type="button"
+            className={leftTab === 'git' ? 'active' : ''}
+            onClick={() => setLeftTab('git')}
+          >
+            Git
+          </button>
+        </div>
+      ) : null}
+      {layout === 'desktop' && leftTab === 'git' ? (
+        <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />
+      ) : (
+        <FileTree
+          tree={tree}
+          onOpen={(p) => void handleOpenFile(p)}
+          activePath={openFile?.path}
+          onRefresh={() => void refreshTree()}
+        />
+      )}
+    </div>
+  );
+
+  function renderDesktop() {
+    return (
+      <div className="ac-body">
+        <SessionSidebar
+          sessions={sessions}
+          activeId={activeId}
+          onNew={() => void handleNewSession()}
+          onSelect={(id) => {
+            setActiveId(id);
+            setNav('chat');
+          }}
+          onDelete={(id) => void handleDeleteSession(id)}
+        />
+        <div className="ac-main">
+          <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
+            <Splitter.Panel defaultSize={240} min={180} max={400}>
+              {filesPane}
+            </Splitter.Panel>
+            <Splitter.Panel min={240}>
+              {nav === 'jobs' ? <JobsPanel /> : editorPane}
+            </Splitter.Panel>
+            <Splitter.Panel defaultSize={420} min={300}>
+              {chatPane}
+            </Splitter.Panel>
+          </Splitter>
+        </div>
+      </div>
+    );
+  }
+
+  function renderPad() {
+    return (
+      <div className="ac-body ac-body-pad">
+        <div className="ac-main">
+          {nav === 'sessions' ? (
+            <SessionSidebar
+              sessions={sessions}
+              activeId={activeId}
+              onNew={() => void handleNewSession()}
+              onSelect={(id) => {
+                setActiveId(id);
+                setNav('chat');
+              }}
+              onDelete={(id) => void handleDeleteSession(id)}
+            />
+          ) : null}
+          {nav === 'files' || nav === 'git' ? (
+            nav === 'git' ? (
+              <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />
+            ) : (
+              <FileTree
+                tree={tree}
+                onOpen={(p) => void handleOpenFile(p)}
+                activePath={openFile?.path}
+                onRefresh={() => void refreshTree()}
+              />
+            )
+          ) : null}
+          {nav === 'editor' ? editorPane : null}
+          {nav === 'chat' ? chatPane : null}
+          {nav === 'jobs' ? <JobsPanel /> : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPhone() {
+    return renderPad();
+  }
+
+  const tabs: { id: NavTab; label: string }[] = [
+    { id: 'sessions', label: '会话' },
+    { id: 'files', label: '文件' },
+    { id: 'editor', label: '编辑' },
+    { id: 'chat', label: '对话' },
+    { id: 'git', label: 'Git' },
+    { id: 'jobs', label: '任务' },
+  ];
+
   return (
-    <div className="ac-root">
+    <div className={`ac-root ac-layout-${layout}`}>
       <header className="ac-topbar">
         <div className="ac-brand">
           <Icon name="code" size={18} />
@@ -216,109 +430,46 @@ export function App() {
           {cwdLabel}
         </div>
         <div className="ac-topbar-actions">
-          <Button
-            size="sm"
-            type={showFiles ? 'primary' : 'default'}
-            onClick={() => setShowFiles((v) => !v)}
-          >
-            文件
-          </Button>
+          {layout === 'desktop' ? (
+            <>
+              <Button
+                size="sm"
+                type={nav === 'jobs' ? 'primary' : 'default'}
+                onClick={() => setNav(nav === 'jobs' ? 'editor' : 'jobs')}
+              >
+                任务
+              </Button>
+              <Button
+                size="sm"
+                type={leftTab === 'git' ? 'primary' : 'default'}
+                onClick={() => setLeftTab(leftTab === 'git' ? 'files' : 'git')}
+              >
+                Git
+              </Button>
+            </>
+          ) : null}
           <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
             {workspace?.hasApiKey ? 'API Key' : '无 Key'}
           </span>
         </div>
       </header>
 
-      <div className="ac-body">
-        <SessionSidebar
-          sessions={sessions}
-          activeId={activeId}
-          onNew={handleNewSession}
-          onSelect={handleSelectSession}
-          onDelete={handleDeleteSession}
-        />
+      {layout !== 'desktop' ? (
+        <nav className="ac-mobile-nav">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={nav === t.id ? 'active' : ''}
+              onClick={() => setNav(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
-        <div className="ac-main">
-          <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
-            {showFiles ? (
-              <Splitter.Panel defaultSize={220} min={160} max={360}>
-                <FileTree tree={tree} onOpen={handleOpenFile} activePath={openFile?.path} />
-              </Splitter.Panel>
-            ) : null}
-
-            <Splitter.Panel min={280}>
-              {openFile ? (
-                <div className="ac-editor-pane">
-                  <div className="ac-editor-tab">
-                    <span>{openFile.path}</span>
-                    <button type="button" className="ac-icon-btn" onClick={() => setOpenFile(null)}>
-                      ×
-                    </button>
-                  </div>
-                  <div className="ac-editor-body">
-                    <CodeEditor
-                      language={openFile.language || 'plaintext'}
-                      content={openFile.content}
-                      width="100%"
-                      height="100%"
-                      readOnly
-                      border={false}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="ac-editor-empty">
-                  <p>从左侧打开文件预览</p>
-                  <p className="ac-muted">Agent 可直接读写工作区文件</p>
-                </div>
-              )}
-            </Splitter.Panel>
-
-            <Splitter.Panel defaultSize={420} min={320}>
-              <div className="ac-chat">
-                {!activeId && chatList.length === 0 && !loading ? (
-                  <div className="ac-welcome">
-                    <h1>AirCode</h1>
-                    <p>基于 Claude Code SDK 的编程助手 · 无需登录</p>
-                    <ChatInput
-                      className="air-chat-input-full"
-                      onSend={handleSend}
-                      finished
-                      showAttachment={false}
-                      placeholder="描述你想完成的任务…"
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div ref={viewRef} className="ac-chat-view">
-                      <ChatView
-                        height={chatSize.h}
-                        width={chatSize.w}
-                        chatList={chatList}
-                        lastContent={lastContent}
-                        loading={loading}
-                        assistantName="Claude"
-                        contentPadding={12}
-                      />
-                    </div>
-                    <div className="ac-chat-input">
-                      <ChatInput
-                        className="air-chat-input-full"
-                        onSend={handleSend}
-                        onStop={handleStop}
-                        finished={!loading}
-                        disabled={false}
-                        showAttachment={false}
-                        placeholder="继续对话…"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </Splitter.Panel>
-          </Splitter>
-        </div>
-      </div>
+      {layout === 'desktop' ? renderDesktop() : layout === 'pad' ? renderPad() : renderPhone()}
     </div>
   );
 }

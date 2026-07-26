@@ -42,3 +42,8 @@ export interface FileContentDto {
   content: string;
   language?: string;
 }
+
+export interface WriteFileRequest {
+  path: string;
+  content: string;
+}

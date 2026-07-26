@@ -10,6 +10,7 @@ loadEnv({ path: resolve(__dirname, '../../../.env') });
 loadEnv();
 
 const port = Number(process.env.PORT || 8787);
+const hostname = process.env.HOST?.trim() || '0.0.0.0';
 const workspace = process.env.AIRCODE_WORKSPACE?.trim() || process.cwd();
 
 const { app, host } = createApp({ workspace });
@@ -20,8 +21,8 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', serveStatic({ root: webDist, path: 'index.html' }));
 }
 
-const server = serve({ fetch: app.fetch, port }, () => {
-  console.log(`[aircode] server http://127.0.0.1:${port}`);
+const server = serve({ fetch: app.fetch, port, hostname }, () => {
+  console.log(`[aircode] server http://${hostname}:${port}`);
   console.log(`[aircode] workspace ${workspace}`);
   console.log(
     `[aircode] ANTHROPIC_API_KEY ${host.hasApiKey() ? '已配置' : '未配置（请写入 .env）'}`,

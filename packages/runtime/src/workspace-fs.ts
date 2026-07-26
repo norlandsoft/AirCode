@@ -13,6 +13,16 @@ const IGNORE = new Set([
   '.cache',
 ]);
 
+function resolveSafePath(root: string, relPath: string): { abs: string; normalized: string } {
+  const normalized = path.normalize(relPath).replace(/^(\.\.(\/|\\|$))+/, '');
+  const abs = path.resolve(root, normalized);
+  const rootAbs = path.resolve(root);
+  if (!abs.startsWith(rootAbs + path.sep) && abs !== rootAbs) {
+    throw new Error('非法路径');
+  }
+  return { abs, normalized };
+}
+
 export async function readFileTree(
   root: string,
   rel = '',
@@ -35,7 +45,9 @@ export async function readFileTree(
   });
 
   for (const entry of sorted) {
-    if (entry.name.startsWith('.') && entry.name !== '.env.example') continue;
+    if (entry.name.startsWith('.') && entry.name !== '.env.example' && entry.name !== '.aircode') {
+      continue;
+    }
     if (IGNORE.has(entry.name)) continue;
     const childRel = rel ? `${rel}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
@@ -74,13 +86,24 @@ export async function readWorkspaceFile(
   root: string,
   relPath: string,
 ): Promise<FileContentDto> {
-  const normalized = path.normalize(relPath).replace(/^(\.\.(\/|\\|$))+/, '');
-  const abs = path.resolve(root, normalized);
-  const rootAbs = path.resolve(root);
-  if (!abs.startsWith(rootAbs + path.sep) && abs !== rootAbs) {
-    throw new Error('非法路径');
-  }
+  const { abs, normalized } = resolveSafePath(root, relPath);
   const content = await fs.readFile(abs, 'utf8');
+  const ext = path.extname(abs).slice(1).toLowerCase();
+  return {
+    path: normalized,
+    content,
+    language: LANG_BY_EXT[ext],
+  };
+}
+
+export async function writeWorkspaceFile(
+  root: string,
+  relPath: string,
+  content: string,
+): Promise<FileContentDto> {
+  const { abs, normalized } = resolveSafePath(root, relPath);
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, content, 'utf8');
   const ext = path.extname(abs).slice(1).toLowerCase();
   return {
     path: normalized,

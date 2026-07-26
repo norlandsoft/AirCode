@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { AgentEventDto } from '@aircode/shared';
+import type { AgentEventDto, JobEventDto } from '@aircode/shared';
 import { SseEventName } from '@aircode/shared';
 import { streamSSE } from 'hono/streaming';
 
@@ -33,7 +33,42 @@ export function sessionEventStream(
       unsub();
     });
 
-    // 保持连接
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => resolve());
+    });
+  });
+}
+
+/** 按 jobId 过滤的 SSE 订阅 */
+export function jobEventStream(
+  c: Context,
+  jobId: string,
+  subscribe: (listener: (jid: string, event: JobEventDto) => void) => () => void,
+) {
+  c.header('Content-Type', 'text/event-stream');
+  c.header('Cache-Control', 'no-cache');
+  c.header('Connection', 'keep-alive');
+
+  return streamSSE(c, async (stream) => {
+    await stream.writeSSE({ event: SseEventName.ready, data: JSON.stringify({ jobId }) });
+
+    const unsub = subscribe((jid, event) => {
+      if (jid !== jobId) return;
+      void stream.writeSSE({
+        event: SseEventName.job,
+        data: JSON.stringify({ jobId: jid, event, at: Date.now() }),
+      });
+    });
+
+    const ping = setInterval(() => {
+      void stream.writeSSE({ event: SseEventName.ping, data: '{}' });
+    }, 15000);
+
+    stream.onAbort(() => {
+      clearInterval(ping);
+      unsub();
+    });
+
     await new Promise<void>((resolve) => {
       stream.onAbort(() => resolve());
     });

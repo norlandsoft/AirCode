@@ -7,9 +7,24 @@ export const HttpPaths = {
   sessionPrompt: (id: string) => `/api/sessions/${id}/prompt` as const,
   sessionAbort: (id: string) => `/api/sessions/${id}/abort` as const,
   sessionEvents: (id: string) => `/api/sessions/${id}/events` as const,
-  sessionMessages: (id: string) => `/api/sessions/${id}/messages` as const,
   filesTree: '/api/files/tree',
   fileContent: '/api/files/content',
+  gitStatus: '/api/git/status',
+  gitBranches: '/api/git/branches',
+  gitLog: '/api/git/log',
+  gitDiff: '/api/git/diff',
+  gitStage: '/api/git/stage',
+  gitUnstage: '/api/git/unstage',
+  gitCommit: '/api/git/commit',
+  gitCheckout: '/api/git/checkout',
+  gitPull: '/api/git/pull',
+  gitPush: '/api/git/push',
+  gitFetch: '/api/git/fetch',
+  jobs: '/api/jobs',
+  jobTasks: '/api/jobs/tasks',
+  job: (id: string) => `/api/jobs/${id}` as const,
+  jobAbort: (id: string) => `/api/jobs/${id}/abort` as const,
+  jobEvents: (id: string) => `/api/jobs/${id}/events` as const,
 } as const;
 
 /** SSE 事件名 */
@@ -17,4 +32,5 @@ export const SseEventName = {
   ready: 'ready',
   ping: 'ping',
   session: 'session',
+  job: 'job',
 } as const;

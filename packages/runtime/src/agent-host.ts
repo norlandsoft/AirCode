@@ -6,7 +6,18 @@ import type {
   SessionSummaryDto,
 } from '@aircode/shared';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { formatToolResultInlineTag, formatToolUseInlineTag } from './tool-tags.js';
+import {
+  buildClaudeProcessEnv,
+  isJsClaudeExecutable,
+  resolveClaudeCodeExecutable,
+  resolveSettingSources,
+} from './claude-runtime.js';
+import {
+  isResumeNotFoundError,
+  SdkContentMapper,
+  SNAPSHOT_PREFIX,
+  type SdkMessageLike,
+} from './sdk-mapper.js';
 
 type EventListener = (sessionId: string, event: AgentEventDto) => void;
 
@@ -16,7 +27,6 @@ interface SessionRecord {
   cwd: string;
   createdAt: number;
   updatedAt: number;
-  /** Claude Code SDK session id（用于 resume） */
   claudeSessionId?: string;
   model?: string;
   messages: ChatMessageDto[];
@@ -25,46 +35,7 @@ interface SessionRecord {
   abortController?: AbortController;
 }
 
-function contentBlockToDelta(block: unknown): string {
-  if (!block || typeof block !== 'object') return '';
-  const b = block as Record<string, unknown>;
-  if (b.type === 'text' && typeof b.text === 'string') return b.text;
-  if (b.type === 'thinking' && typeof b.thinking === 'string') {
-    return `\n<think>${b.thinking}</think>\n`;
-  }
-  if (b.type === 'tool_use') {
-    const name = typeof b.name === 'string' ? b.name : 'tool';
-    const input = b.input ?? {};
-    return formatToolUseInlineTag(name, JSON.stringify(input));
-  }
-  return '';
-}
-
-function extractTextDeltaFromStreamEvent(event: unknown): string {
-  if (!event || typeof event !== 'object') return '';
-  const e = event as Record<string, unknown>;
-  if (e.type === 'content_block_delta' && e.delta && typeof e.delta === 'object') {
-    const d = e.delta as Record<string, unknown>;
-    if (d.type === 'text_delta' && typeof d.text === 'string') return d.text;
-    if (d.type === 'thinking_delta' && typeof d.thinking === 'string') {
-      // 流式 thinking：简单追加（ChatView 在未闭合时当普通文本）
-      return d.thinking;
-    }
-  }
-  if (e.type === 'content_block_start' && e.content_block) {
-    const block = e.content_block as Record<string, unknown>;
-    if (block.type === 'tool_use') {
-      const name = typeof block.name === 'string' ? block.name : 'tool';
-      // 工具参数在后续 input_json_delta 中；先占位空对象，完整版在 assistant 消息里补齐
-      return formatToolUseInlineTag(name, '{}');
-    }
-    if (block.type === 'thinking') return '\n<think>';
-  }
-  if (e.type === 'content_block_stop') {
-    // thinking 闭合由完整 assistant 消息覆盖更稳妥；此处不强制
-  }
-  return '';
-}
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 /**
  * Claude Agent SDK 会话宿主。
@@ -185,169 +156,212 @@ export class AgentHost {
     });
     this.emit(sessionId, { type: 'status', sessionId, streaming: true });
 
-    const abortController = new AbortController();
+    let abortController = new AbortController();
     s.abortController = abortController;
 
-    let accumulated = '';
-    /** 已通过完整 assistant 消息写入的文本长度，用于避免与 stream_event 重复 */
-    let committedFromAssistant = '';
-    const seenToolUseIds = new Set<string>();
+    const fail = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (s.streamingContent) {
+        s.messages.push({
+          id: randomUUID(),
+          role: 'assistant',
+          content: s.streamingContent,
+        });
+      }
+      s.streaming = false;
+      this.emit(sessionId, { type: 'error', sessionId, message: msg });
+      this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+    };
 
     try {
+      await this.runQuery(s, trimmed, abortController, false);
+    } catch (err) {
+      if (isResumeNotFoundError(err) && s.claudeSessionId) {
+        console.warn('[AgentHost] resume 失效，清空 session 后重试');
+        s.claudeSessionId = undefined;
+        abortController = new AbortController();
+        s.abortController = abortController;
+        try {
+          await this.runQuery(s, trimmed, abortController, true);
+        } catch (retryErr) {
+          fail(retryErr);
+          throw retryErr;
+        }
+      } else {
+        fail(err);
+        throw err;
+      }
+    } finally {
+      s.abortController = undefined;
+    }
+  }
+
+  private async runQuery(
+    s: SessionRecord,
+    prompt: string,
+    abortController: AbortController,
+    isRetry: boolean,
+  ): Promise<void> {
+    const sessionId = s.id;
+    const mapper = new SdkContentMapper();
+    let accumulated = '';
+    let committedFromAssistant = '';
+    let timedOut = false;
+
+    const claudeExecutable = resolveClaudeCodeExecutable();
+    const queryEnv = buildClaudeProcessEnv();
+    const queryOptions: Record<string, unknown> = {
+      cwd: s.cwd,
+      resume: s.claudeSessionId,
+      abortController,
+      includePartialMessages: true,
+      permissionMode: 'acceptEdits',
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      settingSources: resolveSettingSources(),
+      env: queryEnv,
+      allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash', 'Skill'],
+      canUseTool: async (_toolName: string, input: Record<string, unknown>) => ({
+        behavior: 'allow' as const,
+        updatedInput: input,
+      }),
+      stderr: (line: string) => {
+        console.error(`[agent-sdk] ${line}`);
+      },
+    };
+
+    if (claudeExecutable) {
+      queryOptions.pathToClaudeCodeExecutable = claudeExecutable;
+      if (isJsClaudeExecutable(claudeExecutable)) {
+        queryOptions.executable = process.execPath;
+      }
+    }
+
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      abortController.abort();
+    }, DEFAULT_TIMEOUT_MS);
+
+    try {
+      if (isRetry) {
+        accumulated = '';
+        committedFromAssistant = '';
+        s.streamingContent = '';
+      }
+
       const q = query({
-        prompt: trimmed,
-        options: {
-          cwd: s.cwd,
-          resume: s.claudeSessionId,
-          abortController,
-          includePartialMessages: true,
-          permissionMode: 'acceptEdits',
-          systemPrompt: { type: 'preset', preset: 'claude_code' },
-          settingSources: ['project'],
-        },
+        prompt,
+        options: queryOptions as Parameters<typeof query>[0]['options'],
       });
 
       for await (const message of q) {
         if (abortController.signal.aborted) break;
 
-        if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
-          s.claudeSessionId = message.session_id;
-          s.model = message.model;
-          this.emit(sessionId, {
-            type: 'session_init',
-            sessionId,
-            model: message.model,
-            cwd: message.cwd,
-          });
-          continue;
-        }
-
-        if (message.type === 'stream_event') {
-          const delta = extractTextDeltaFromStreamEvent(message.event);
-          if (delta) {
-            // 若已有完整 assistant 块，优先以完整块为准，跳过可能重复的 stream 文本
-            if (!committedFromAssistant) {
-              accumulated += delta;
-              s.streamingContent = accumulated;
-              this.emit(sessionId, {
-                type: 'assistant_delta',
-                sessionId,
-                content: accumulated,
-                delta,
-              });
-            }
+        const pieces = mapper.mapMessage(message as SdkMessageLike);
+        for (const piece of pieces) {
+          if (piece.kind === 'session_init') {
+            s.claudeSessionId = piece.sessionId;
+            if (piece.model) s.model = piece.model;
+            this.emit(sessionId, {
+              type: 'session_init',
+              sessionId,
+              model: piece.model ?? s.model,
+              cwd: piece.cwd ?? s.cwd,
+            });
+            continue;
           }
-          continue;
-        }
 
-        if (message.type === 'assistant') {
-          s.claudeSessionId = message.session_id;
-          const parts: string[] = [];
-          const content = message.message?.content;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (!block || typeof block !== 'object') continue;
-              const b = block as Record<string, unknown>;
-              if (b.type === 'tool_use' && typeof b.id === 'string') {
-                if (seenToolUseIds.has(b.id)) continue;
-                seenToolUseIds.add(b.id);
+          if (piece.kind === 'error') {
+            this.emit(sessionId, { type: 'error', sessionId, message: piece.message });
+            continue;
+          }
+
+          if (piece.kind === 'delta') {
+            if (piece.text.startsWith(SNAPSHOT_PREFIX)) {
+              const full = piece.text.slice(SNAPSHOT_PREFIX.length);
+              if (!committedFromAssistant) {
+                accumulated = full;
+              } else {
+                // 保留已提交的 tool_result，用完整 assistant 块替换正文/工具调用段
+                accumulated = full;
               }
-              const piece = contentBlockToDelta(block);
-              if (piece) parts.push(piece);
-            }
-          }
-          const full = parts.join('');
-          if (full) {
-            // 完整 assistant 消息替换本轮此前 stream 累积，避免 tool 参数不完整
-            if (!committedFromAssistant) {
-              accumulated = full;
+              committedFromAssistant = accumulated;
+            } else if (!committedFromAssistant || piece.text.includes('<tool_result>')) {
+              accumulated += piece.text;
+              if (piece.text.includes('<tool_result>')) {
+                committedFromAssistant = accumulated;
+              }
             } else {
-              accumulated = committedFromAssistant + full;
+              // 已有完整 assistant 快照时，跳过可能重复的 stream 文本
+              continue;
             }
-            committedFromAssistant = accumulated;
             s.streamingContent = accumulated;
             this.emit(sessionId, {
               type: 'assistant_delta',
               sessionId,
               content: accumulated,
-              delta: full,
+              delta: piece.text.startsWith(SNAPSHOT_PREFIX)
+                ? piece.text.slice(SNAPSHOT_PREFIX.length)
+                : piece.text,
             });
+            continue;
           }
-          continue;
-        }
 
-        if (message.type === 'user') {
-          // 工具结果会以 user 消息形式回传
-          const content = message.message?.content;
-          if (Array.isArray(content)) {
-            for (const block of content) {
-              if (!block || typeof block !== 'object') continue;
-              const b = block as Record<string, unknown>;
-              if (b.type === 'tool_result') {
-                const detail =
-                  typeof b.content === 'string'
-                    ? b.content
-                    : Array.isArray(b.content)
-                      ? b.content
-                          .map((c) =>
-                            c && typeof c === 'object' && 'text' in c
-                              ? String((c as { text: unknown }).text)
-                              : JSON.stringify(c),
-                          )
-                          .join('\n')
-                      : JSON.stringify(b.content ?? '');
-                const tag = formatToolResultInlineTag(detail);
-                accumulated += tag;
-                committedFromAssistant = accumulated;
-                s.streamingContent = accumulated;
-                this.emit(sessionId, {
-                  type: 'assistant_delta',
-                  sessionId,
-                  content: accumulated,
-                  delta: tag,
-                });
-              }
+          if (piece.kind === 'done') {
+            if (piece.sessionId) s.claudeSessionId = piece.sessionId;
+            const assistantId = randomUUID();
+            const finalContent = accumulated || piece.result || '';
+            const assistantMsg: ChatMessageDto = {
+              id: assistantId,
+              role: 'assistant',
+              content: finalContent,
+            };
+            s.messages.push(assistantMsg);
+            s.streamingContent = '';
+            s.streaming = false;
+            s.updatedAt = Date.now();
+
+            if (piece.failed && piece.errorMessage) {
+              this.emit(sessionId, {
+                type: 'error',
+                sessionId,
+                message: piece.errorMessage,
+              });
             }
+
+            this.emit(sessionId, {
+              type: 'assistant_done',
+              sessionId,
+              messageId: assistantId,
+              content: finalContent,
+              usage: piece.usage,
+            });
+            this.emit(sessionId, { type: 'status', sessionId, streaming: false });
           }
-          continue;
         }
+      }
 
-        if (message.type === 'result') {
-          s.claudeSessionId = message.session_id;
+      if (timedOut) {
+        if (accumulated && s.streaming) {
           const assistantId = randomUUID();
-          const finalContent = accumulated || (message.subtype === 'success' ? message.result : '');
-          const assistantMsg: ChatMessageDto = {
-            id: assistantId,
-            role: 'assistant',
-            content: finalContent,
-          };
-          s.messages.push(assistantMsg);
-          s.streamingContent = '';
-          s.streaming = false;
-          s.updatedAt = Date.now();
-
-          if (message.subtype !== 'success' && 'errors' in message) {
-            const errText = message.errors?.join('; ') || 'Agent 执行失败';
-            this.emit(sessionId, { type: 'error', sessionId, message: errText });
-          }
-
+          s.messages.push({ id: assistantId, role: 'assistant', content: accumulated });
           this.emit(sessionId, {
             type: 'assistant_done',
             sessionId,
             messageId: assistantId,
-            content: finalContent,
-            usage: {
-              inputTokens: message.usage?.input_tokens,
-              outputTokens: message.usage?.output_tokens,
-              costUsd: message.total_cost_usd,
-              turns: message.num_turns,
-            },
+            content: accumulated,
           });
-          this.emit(sessionId, { type: 'status', sessionId, streaming: false });
         }
+        s.streaming = false;
+        s.streamingContent = '';
+        this.emit(sessionId, {
+          type: 'error',
+          sessionId,
+          message: `Agent 运行超时（${DEFAULT_TIMEOUT_MS}ms），已中止`,
+        });
+        this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+        return;
       }
 
-      // 若循环因 abort 结束且尚未落库
       if (s.streaming) {
         if (accumulated) {
           const assistantId = randomUUID();
@@ -363,22 +377,8 @@ export class AgentHost {
         s.streamingContent = '';
         this.emit(sessionId, { type: 'status', sessionId, streaming: false });
       }
-    } catch (err) {
-      s.streaming = false;
-      s.streamingContent = accumulated;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (accumulated) {
-        s.messages.push({
-          id: randomUUID(),
-          role: 'assistant',
-          content: accumulated,
-        });
-      }
-      this.emit(sessionId, { type: 'error', sessionId, message: msg });
-      this.emit(sessionId, { type: 'status', sessionId, streaming: false });
-      throw err;
     } finally {
-      s.abortController = undefined;
+      clearTimeout(timeoutTimer);
     }
   }
 

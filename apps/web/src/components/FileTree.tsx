@@ -1,10 +1,11 @@
-import { Icon } from '@air/design';
+import { Button, Icon } from '@air/design';
 import type { FileTreeNodeDto } from '@aircode/shared';
 
 interface Props {
   tree: FileTreeNodeDto[];
   activePath?: string;
   onOpen: (path: string) => void;
+  onRefresh?: () => void;
 }
 
 function Node({
@@ -51,10 +52,17 @@ function Node({
   );
 }
 
-export function FileTree({ tree, activePath, onOpen }: Props) {
+export function FileTree({ tree, activePath, onOpen, onRefresh }: Props) {
   return (
     <div className="ac-filetree">
-      <div className="ac-filetree-head">资源管理器</div>
+      <div className="ac-filetree-head">
+        <span>资源管理器</span>
+        {onRefresh ? (
+          <Button size="sm" onClick={onRefresh}>
+            刷新
+          </Button>
+        ) : null}
+      </div>
       <div className="ac-filetree-body">
         {tree.map((n) => (
           <Node key={n.path} node={n} depth={0} activePath={activePath} onOpen={onOpen} />

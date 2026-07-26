@@ -14,6 +14,7 @@ body,
   background: #0f1115;
   color: #e8eaed;
   font-family: 'Space Grotesk', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ac-root {
@@ -27,7 +28,7 @@ body,
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 40px;
+  height: 44px;
   padding: 0 12px;
   border-bottom: 1px solid #252830;
   background: #14161c;
@@ -80,10 +81,41 @@ body,
   border-color: #5a3d1f;
 }
 
+.ac-mobile-nav {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid #252830;
+  background: #12141a;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ac-mobile-nav button {
+  flex: 1;
+  min-width: 56px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #9aa0a6;
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ac-mobile-nav button.active {
+  color: #e8eaed;
+  box-shadow: inset 0 -2px 0 #5b8def;
+}
+
 .ac-body {
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+.ac-body-pad .ac-main,
+.ac-layout-phone .ac-main {
+  width: 100%;
 }
 
 .ac-sidebar {
@@ -93,6 +125,13 @@ body,
   background: #12141a;
   display: flex;
   flex-direction: column;
+  height: 100%;
+}
+
+.ac-layout-phone .ac-sidebar,
+.ac-layout-pad .ac-sidebar {
+  width: 100%;
+  border-right: 0;
 }
 
 .ac-sidebar-head {
@@ -127,9 +166,11 @@ body,
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: 8px 8px;
+  padding: 10px 8px;
   cursor: pointer;
   min-width: 0;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .ac-session-title {
@@ -144,9 +185,11 @@ body,
   background: transparent;
   color: #666;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 8px 12px;
   font-size: 16px;
   line-height: 1;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 
 .ac-session-del:hover {
@@ -173,24 +216,61 @@ body,
   min-height: 0;
 }
 
+.ac-left-stack {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #101218;
+}
+
+.ac-left-tabs {
+  display: flex;
+  border-bottom: 1px solid #252830;
+  flex-shrink: 0;
+}
+
+.ac-left-tabs button {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ac-left-tabs button.active {
+  color: #e8eaed;
+  background: #1a2030;
+}
+
 .ac-filetree {
   height: 100%;
   display: flex;
   flex-direction: column;
   background: #101218;
   border-right: 1px solid #252830;
+  flex: 1;
+  min-height: 0;
+}
+
+.ac-layout-phone .ac-filetree,
+.ac-layout-pad .ac-filetree {
+  border-right: 0;
 }
 
 .ac-filetree-head {
-  height: 32px;
+  height: 36px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 10px;
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #888;
   border-bottom: 1px solid #252830;
+  flex-shrink: 0;
 }
 
 .ac-filetree-body {
@@ -208,9 +288,11 @@ body,
   background: transparent;
   color: #c5c8ce;
   font-size: 12px;
-  padding: 4px 8px;
+  padding: 6px 8px;
   cursor: default;
   text-align: left;
+  min-height: 36px;
+  touch-action: manipulation;
 }
 
 .ac-tree-row.file {
@@ -230,14 +312,34 @@ body,
 }
 
 .ac-editor-tab {
-  height: 32px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 0 10px;
   font-size: 12px;
   border-bottom: 1px solid #252830;
   color: #bbb;
+  flex-shrink: 0;
+}
+
+.ac-editor-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-dirty {
+  color: #ffb74d;
+}
+
+.ac-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .ac-editor-body {
@@ -252,12 +354,19 @@ body,
   align-items: center;
   justify-content: center;
   color: #777;
-  gap: 4px;
+  gap: 8px;
+  padding: 24px;
 }
 
 .ac-muted {
   font-size: 12px;
   color: #555;
+}
+
+.ac-muted-block {
+  padding: 12px;
+  font-size: 12px;
+  color: #666;
 }
 
 .ac-icon-btn {
@@ -266,6 +375,9 @@ body,
   color: #888;
   cursor: pointer;
   font-size: 16px;
+  min-width: 36px;
+  min-height: 36px;
+  touch-action: manipulation;
 }
 
 .ac-chat {
@@ -274,6 +386,11 @@ body,
   flex-direction: column;
   background: #0f1218;
   border-left: 1px solid #252830;
+}
+
+.ac-layout-phone .ac-chat,
+.ac-layout-pad .ac-chat {
+  border-left: 0;
 }
 
 .ac-chat-view {
@@ -314,4 +431,302 @@ body,
 
 .air-chat-input-full {
   width: 100%;
+}
+
+/* Panel shared (Git / Jobs) */
+.ac-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #101218;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ac-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #252830;
+  font-size: 12px;
+  color: #bbb;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ac-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ac-panel-subhead {
+  font-size: 11px;
+  color: #777;
+  padding: 8px 10px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ac-panel-error {
+  padding: 16px;
+  color: #ef9a9a;
+  font-size: 13px;
+}
+
+.ac-input,
+.ac-select,
+.ac-textarea {
+  background: #1a1d24;
+  border: 1px solid #333;
+  color: #e8eaed;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.ac-input,
+.ac-select {
+  min-height: 36px;
+}
+
+.ac-textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.ac-git-branch-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #252830;
+}
+
+.ac-git-branch-row .ac-select {
+  flex: 1;
+  min-width: 120px;
+}
+
+.ac-git-branch-row .ac-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.ac-git-files {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ac-git-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+}
+
+.ac-git-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.ac-git-file {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 8px 6px;
+  cursor: pointer;
+  min-width: 0;
+  min-height: 40px;
+  font-size: 12px;
+  touch-action: manipulation;
+}
+
+.ac-git-file:hover {
+  background: #1a2030;
+}
+
+.ac-git-xy {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: #ffb74d;
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.ac-git-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-git-file-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ac-link-btn {
+  border: 0;
+  background: transparent;
+  color: #5b8def;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 6px 4px;
+  min-height: 36px;
+  touch-action: manipulation;
+}
+
+.ac-git-commit {
+  padding: 8px 10px;
+  border-top: 1px solid #252830;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ac-diff {
+  margin: 0;
+  padding: 10px;
+  max-height: 30%;
+  overflow: auto;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: #0a0c10;
+  border-top: 1px solid #252830;
+  white-space: pre-wrap;
+  color: #aab;
+  flex-shrink: 0;
+}
+
+.ac-jobs-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid #252830;
+}
+
+.ac-jobs-custom {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #252830;
+}
+
+.ac-jobs-custom .ac-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ac-jobs-list {
+  max-height: 140px;
+  overflow: auto;
+  border-bottom: 1px solid #252830;
+  flex-shrink: 0;
+}
+
+.ac-jobs-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 8px;
+}
+
+.ac-job-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  min-height: 40px;
+  font-size: 12px;
+  touch-action: manipulation;
+}
+
+.ac-job-item.active,
+.ac-job-item:hover {
+  background: #1a2030;
+}
+
+.ac-job-status {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #333;
+  text-transform: uppercase;
+}
+
+.ac-job-status.running,
+.ac-job-status.queued {
+  color: #ffb74d;
+  border-color: #5a3d1f;
+}
+
+.ac-job-status.succeeded {
+  color: #8bc34a;
+  border-color: #3d5a1f;
+}
+
+.ac-job-status.failed,
+.ac-job-status.aborted {
+  color: #ef9a9a;
+  border-color: #5a2a2a;
+}
+
+.ac-job-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ac-jobs-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.ac-jobs-log {
+  flex: 1;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: #0a0c10;
+  color: #c5c8ce;
+  white-space: pre-wrap;
+  min-height: 0;
+}
+
+@media (max-width: 767px) {
+  .ac-welcome h1 {
+    font-size: 22px;
+  }
+
+  .ac-topbar-path {
+    display: none;
+  }
+
+  .ac-brand-text {
+    font-size: 13px;
+  }
 }

@@ -1,17 +1,17 @@
 # AirCode
 
-基于 **Claude Agent SDK** 的 Cursor 风格编程助手。无登录，本机直连。
+基于 **Claude Agent SDK** 的远程开发 WebUI：在浏览器中操作 Claude Code、管理 Git、编辑代码、运行 Shell CI/CD。无登录，开发机直连。
 
 ## 架构
 
 ```
 apps/web         Vite + React + @air/design（ChatView / ChatInput / CodeEditor / Splitter）
 apps/server      Hono REST + SSE
-packages/runtime AgentHost（@anthropic-ai/claude-agent-sdk）
+packages/runtime AgentHost / Git / ShellJobs / 工作区 FS
 packages/shared  HTTP 契约 / 事件 DTO
 ```
 
-UI 组件来自 `/opt/AirOne/packages/design`（Vite alias，无需登录）。
+UI 组件来自 `/opt/AirOne/packages/design`（Vite alias）。
 
 ## 准备
 
@@ -27,12 +27,12 @@ cd /opt/AirOne/packages/design && npm run build
 cp .env.example .env
 # 填入 ANTHROPIC_API_KEY=
 # 可选 AIRCODE_WORKSPACE=/path/to/project
+# 远程访问：HOST=0.0.0.0，并设置 AIRCODE_CORS_ORIGIN
 ```
 
-3. 依赖：优先 `pnpm install`；若 registry 不稳定，可复用 AirOne 的 pnpm store：
+3. 依赖：优先 `pnpm install`；若 registry 不稳定：
 
 ```bash
-# 需已有 vendor/tgz 内 claude-agent-sdk / dotenv / concurrently 等 tarball
 bash scripts/link-deps.sh
 ```
 
@@ -44,11 +44,12 @@ npm run dev
 ```
 
 - Web http://127.0.0.1:5173
-- API http://127.0.0.1:8787
+- API http://127.0.0.1:8787（默认绑定 `0.0.0.0`）
 
-## 首期能力
+## 能力
 
-- 左侧会话列表
-- 中间文件树 + Monaco 只读预览
-- 右侧 Agent 对话（流式 + `<tool_use>` / `<tool_result>` 内联标签）
-- 无登录；`permissionMode: acceptEdits`
+1. **Claude Code 对话**：多会话、SSE 流式、工具内联标签、resume、自动放行工具
+2. **Git 管理**：status / diff / branch / stage / commit / pull / push / fetch
+3. **代码编辑**：文件树 + Monaco 可写编辑（⌘S 保存）
+4. **CI/CD**：Shell 任务面板（`.aircode/tasks.json` 预置 + 自定义命令 + 流式日志）
+5. **多端适配**：桌面三栏；Pad/手机底部导航切换会话 / 文件 / 编辑 / 对话 / Git / 任务
