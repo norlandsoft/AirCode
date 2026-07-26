@@ -13,13 +13,36 @@ interface Props {
 export function EditorPane({ path, content, language, onClose, onSaved }: Props) {
   const [draft, setDraft] = useState(content);
   const [saving, setSaving] = useState(false);
+  const [editorSize, setEditorSize] = useState({ w: 0, h: 0 });
   const dirty = draft !== content;
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setDraft(content);
   }, [path, content]);
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      const w = Math.max(0, Math.floor(rect.width));
+      const h = Math.max(0, Math.floor(rect.height));
+      setEditorSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [path]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -62,16 +85,19 @@ export function EditorPane({ path, content, language, onClose, onSaved }: Props)
           </button>
         </div>
       </div>
-      <div className="ac-editor-body">
-        <CodeEditor
-          language={language || 'plaintext'}
-          content={draft}
-          onChange={(v: string) => setDraft(v)}
-          width="100%"
-          height="100%"
-          readOnly={false}
-          border={false}
-        />
+      <div ref={bodyRef} className="ac-editor-body">
+        {editorSize.w > 0 && editorSize.h > 0 ? (
+          <CodeEditor
+            language={language || 'plaintext'}
+            content={draft}
+            onChange={(v: string) => setDraft(v)}
+            /* 传 px 字符串，避免 design CodeEditor 把数字误转为 rem 导致高度偏差 */
+            width={`${editorSize.w}px`}
+            height={`${editorSize.h}px`}
+            readOnly={false}
+            border={false}
+          />
+        ) : null}
       </div>
     </div>
   );
