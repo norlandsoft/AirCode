@@ -389,7 +389,14 @@ export function App() {
       case 'chat':
         return chatPane;
       case 'git':
-        return <GitPanel onOpenFile={(p) => void handleOpenFile(p)} />;
+        return (
+          <GitPanel
+            key={workspace?.cwd ?? 'no-project'}
+            projectCwd={workspace?.cwd ?? null}
+            onOpenFile={(p) => void handleOpenFile(p)}
+            onOpenChat={() => setWorkTab('chat')}
+          />
+        );
       case 'code':
         return codePane;
       case 'cicd':

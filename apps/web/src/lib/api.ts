@@ -153,11 +153,29 @@ export const api = {
     return parseJson(res);
   },
 
+  async gitStageAll(): Promise<GitStatusDto> {
+    const res = await fetch(HttpPaths.gitStage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    return parseJson(res);
+  },
+
   async gitUnstage(paths: string[]): Promise<GitStatusDto> {
     const res = await fetch(HttpPaths.gitUnstage, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paths }),
+    });
+    return parseJson(res);
+  },
+
+  async gitUnstageAll(): Promise<GitStatusDto> {
+    const res = await fetch(HttpPaths.gitUnstage, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
     });
     return parseJson(res);
   },
@@ -195,6 +213,11 @@ export const api = {
 
   async gitFetch(): Promise<{ message: string; status: GitStatusDto }> {
     const res = await fetch(HttpPaths.gitFetch, { method: 'POST' });
+    return parseJson(res);
+  },
+
+  async gitInit(): Promise<{ message: string; status: GitStatusDto }> {
+    const res = await fetch(HttpPaths.gitInit, { method: 'POST' });
     return parseJson(res);
   },
 

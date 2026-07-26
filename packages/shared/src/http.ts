@@ -20,6 +20,7 @@ export const HttpPaths = {
   gitPull: '/api/git/pull',
   gitPush: '/api/git/push',
   gitFetch: '/api/git/fetch',
+  gitInit: '/api/git/init',
   jobs: '/api/jobs',
   jobTasks: '/api/jobs/tasks',
   job: (id: string) => `/api/jobs/${id}` as const,

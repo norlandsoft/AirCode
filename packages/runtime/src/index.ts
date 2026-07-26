@@ -17,6 +17,9 @@ export {
   gitPull,
   gitPush,
   gitFetch,
+  gitInit,
+  gitStageAll,
+  gitUnstageAll,
 } from './git-service.js';
 export { ShellJobRunner } from './shell-jobs.js';
 export {

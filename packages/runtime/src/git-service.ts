@@ -23,7 +23,12 @@ async function git(
     });
     return { stdout: stdout.toString(), stderr: stderr.toString(), code: 0 };
   } catch (err) {
-    const e = err as { stdout?: Buffer | string; stderr?: Buffer | string; code?: number; message?: string };
+    const e = err as {
+      stdout?: Buffer | string;
+      stderr?: Buffer | string;
+      code?: number;
+      message?: string;
+    };
     const stdout = e.stdout?.toString() ?? '';
     const stderr = e.stderr?.toString() ?? e.message ?? String(err);
     if (options?.allowFail) {
@@ -37,7 +42,6 @@ function parsePorcelain(line: string): GitFileStatusDto | null {
   if (line.length < 3) return null;
   const xy = line.slice(0, 2);
   let filePath = line.slice(3);
-  // rename: "R  old -> new"
   if (filePath.includes(' -> ')) {
     filePath = filePath.split(' -> ').pop() ?? filePath;
   }
@@ -55,14 +59,38 @@ function parsePorcelain(line: string): GitFileStatusDto | null {
   };
 }
 
-export async function gitStatus(cwd: string): Promise<GitStatusDto> {
-  const branchRes = await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true });
-  if (branchRes.code !== 0) {
-    throw new Error('当前工作区不是 git 仓库');
+async function requireRepoRoot(cwd: string): Promise<string> {
+  const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'], { allowFail: true });
+  if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
+    throw new Error('当前项目不是 Git 仓库');
   }
+  const root = await git(cwd, ['rev-parse', '--show-toplevel']);
+  return root.stdout.trim() || cwd;
+}
+
+/** 识别项目目录对应的 git 仓库并返回状态；非仓库时 isRepo=false（不抛错） */
+export async function gitStatus(cwd: string): Promise<GitStatusDto> {
+  const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'], { allowFail: true });
+  if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
+    return {
+      cwd,
+      isRepo: false,
+      gitRoot: cwd,
+      branch: '',
+      clean: true,
+      files: [],
+      ahead: 0,
+      behind: 0,
+    };
+  }
+
+  const rootRes = await git(cwd, ['rev-parse', '--show-toplevel']);
+  const gitRoot = rootRes.stdout.trim() || cwd;
+
+  const branchRes = await git(gitRoot, ['rev-parse', '--abbrev-ref', 'HEAD'], { allowFail: true });
   const branch = branchRes.stdout.trim() || 'HEAD';
 
-  const upstreamRes = await git(cwd, ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+  const upstreamRes = await git(gitRoot, ['rev-parse', '--abbrev-ref', '@{upstream}'], {
     allowFail: true,
   });
   const upstream = upstreamRes.code === 0 ? upstreamRes.stdout.trim() : undefined;
@@ -70,7 +98,7 @@ export async function gitStatus(cwd: string): Promise<GitStatusDto> {
   let ahead = 0;
   let behind = 0;
   if (upstream) {
-    const counts = await git(cwd, ['rev-list', '--left-right', '--count', `${upstream}...HEAD`], {
+    const counts = await git(gitRoot, ['rev-list', '--left-right', '--count', `${upstream}...HEAD`], {
       allowFail: true,
     });
     if (counts.code === 0) {
@@ -80,7 +108,10 @@ export async function gitStatus(cwd: string): Promise<GitStatusDto> {
     }
   }
 
-  const statusRes = await git(cwd, ['status', '--porcelain']);
+  const remoteRes = await git(gitRoot, ['remote', 'get-url', 'origin'], { allowFail: true });
+  const remoteUrl = remoteRes.code === 0 ? remoteRes.stdout.trim() || undefined : undefined;
+
+  const statusRes = await git(gitRoot, ['status', '--porcelain']);
   const files = statusRes.stdout
     .split('\n')
     .map((l) => l.trimEnd())
@@ -90,8 +121,11 @@ export async function gitStatus(cwd: string): Promise<GitStatusDto> {
 
   return {
     cwd,
+    isRepo: true,
+    gitRoot,
     branch,
     upstream,
+    remoteUrl,
     clean: files.length === 0,
     files,
     ahead,
@@ -100,8 +134,11 @@ export async function gitStatus(cwd: string): Promise<GitStatusDto> {
 }
 
 export async function gitBranches(cwd: string): Promise<GitBranchDto[]> {
-  const local = await git(cwd, ['branch', '--format=%(refname:short)|%(HEAD)']);
-  const remote = await git(cwd, ['branch', '-r', '--format=%(refname:short)'], { allowFail: true });
+  const gitRoot = await requireRepoRoot(cwd);
+  const local = await git(gitRoot, ['branch', '--format=%(refname:short)|%(HEAD)']);
+  const remote = await git(gitRoot, ['branch', '-r', '--format=%(refname:short)'], {
+    allowFail: true,
+  });
   const branches: GitBranchDto[] = [];
   const seen = new Set<string>();
 
@@ -114,7 +151,6 @@ export async function gitBranches(cwd: string): Promise<GitBranchDto[]> {
 
   if (remote.code === 0) {
     for (const name of remote.stdout.split('\n').map((s) => s.trim()).filter(Boolean)) {
-      // 跳过 "origin/HEAD -> origin/master" 与仅 remote 名（无 /）
       if (name.includes('->') || !name.includes('/') || seen.has(name)) continue;
       seen.add(name);
       branches.push({ name, current: false, remote: true });
@@ -125,12 +161,14 @@ export async function gitBranches(cwd: string): Promise<GitBranchDto[]> {
 }
 
 export async function gitLog(cwd: string, limit = 30): Promise<GitLogEntryDto[]> {
-  const res = await git(cwd, [
+  const gitRoot = await requireRepoRoot(cwd);
+  const res = await git(gitRoot, [
     'log',
     `-n${limit}`,
     '--pretty=format:%H|%h|%s|%an|%ad',
     '--date=iso',
-  ]);
+  ], { allowFail: true });
+  if (res.code !== 0) return [];
   return res.stdout
     .split('\n')
     .filter(Boolean)
@@ -150,10 +188,11 @@ export async function gitDiff(
   cwd: string,
   options?: { path?: string; staged?: boolean },
 ): Promise<GitDiffDto> {
+  const gitRoot = await requireRepoRoot(cwd);
   const args = ['diff'];
   if (options?.staged) args.push('--cached');
   if (options?.path) args.push('--', options.path);
-  const res = await git(cwd, args, { allowFail: true });
+  const res = await git(gitRoot, args, { allowFail: true });
   return {
     path: options?.path,
     staged: Boolean(options?.staged),
@@ -162,19 +201,32 @@ export async function gitDiff(
 }
 
 export async function gitStage(cwd: string, paths: string[]): Promise<void> {
+  const gitRoot = await requireRepoRoot(cwd);
   if (!paths.length) throw new Error('请指定要暂存的文件');
-  await git(cwd, ['add', '--', ...paths]);
+  await git(gitRoot, ['add', '--', ...paths]);
+}
+
+export async function gitStageAll(cwd: string): Promise<void> {
+  const gitRoot = await requireRepoRoot(cwd);
+  await git(gitRoot, ['add', '-A']);
 }
 
 export async function gitUnstage(cwd: string, paths: string[]): Promise<void> {
+  const gitRoot = await requireRepoRoot(cwd);
   if (!paths.length) throw new Error('请指定要取消暂存的文件');
-  await git(cwd, ['restore', '--staged', '--', ...paths]);
+  await git(gitRoot, ['restore', '--staged', '--', ...paths]);
+}
+
+export async function gitUnstageAll(cwd: string): Promise<void> {
+  const gitRoot = await requireRepoRoot(cwd);
+  await git(gitRoot, ['reset', 'HEAD'], { allowFail: true });
 }
 
 export async function gitCommit(cwd: string, message: string): Promise<string> {
+  const gitRoot = await requireRepoRoot(cwd);
   const msg = message.trim();
   if (!msg) throw new Error('提交信息不能为空');
-  const res = await git(cwd, ['commit', '-m', msg]);
+  const res = await git(gitRoot, ['commit', '-m', msg]);
   return res.stdout.trim() || '提交成功';
 }
 
@@ -183,24 +235,52 @@ export async function gitCheckout(
   branch: string,
   create = false,
 ): Promise<string> {
+  const gitRoot = await requireRepoRoot(cwd);
   const name = branch.trim();
   if (!name) throw new Error('分支名不能为空');
   const args = create ? ['checkout', '-b', name] : ['checkout', name];
-  const res = await git(cwd, args);
+  const res = await git(gitRoot, args);
   return res.stdout.trim() || res.stderr.trim() || `已切换到 ${name}`;
 }
 
 export async function gitPull(cwd: string): Promise<string> {
-  const res = await git(cwd, ['pull', '--ff-only']);
+  const gitRoot = await requireRepoRoot(cwd);
+  const res = await git(gitRoot, ['pull', '--ff-only']);
   return res.stdout.trim() || res.stderr.trim() || 'pull 完成';
 }
 
 export async function gitPush(cwd: string): Promise<string> {
-  const res = await git(cwd, ['push']);
+  const gitRoot = await requireRepoRoot(cwd);
+  const upstream = await git(gitRoot, ['rev-parse', '--abbrev-ref', '@{upstream}'], {
+    allowFail: true,
+  });
+  if (upstream.code !== 0) {
+    const remotes = await git(gitRoot, ['remote'], { allowFail: true });
+    const list = remotes.stdout
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!list.includes('origin')) {
+      throw new Error('没有 origin 远程。可在「对话」中让 Claude Code 添加 remote 后再 Push');
+    }
+    const res = await git(gitRoot, ['push', '-u', 'origin', 'HEAD']);
+    return res.stdout.trim() || res.stderr.trim() || '已推送并设置上游分支';
+  }
+  const res = await git(gitRoot, ['push']);
   return res.stdout.trim() || res.stderr.trim() || 'push 完成';
 }
 
 export async function gitFetch(cwd: string): Promise<string> {
-  const res = await git(cwd, ['fetch', '--all', '--prune']);
+  const gitRoot = await requireRepoRoot(cwd);
+  const res = await git(gitRoot, ['fetch', '--all', '--prune']);
   return res.stdout.trim() || res.stderr.trim() || 'fetch 完成';
+}
+
+export async function gitInit(cwd: string): Promise<string> {
+  const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'], { allowFail: true });
+  if (inside.code === 0 && inside.stdout.trim() === 'true') {
+    throw new Error('已经是 Git 仓库');
+  }
+  await git(cwd, ['init']);
+  return '已在当前项目初始化 Git 仓库';
 }

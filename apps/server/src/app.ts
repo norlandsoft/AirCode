@@ -10,12 +10,15 @@ import {
   gitCommit,
   gitDiff,
   gitFetch,
+  gitInit,
   gitLog,
   gitPull,
   gitPush,
   gitStage,
+  gitStageAll,
   gitStatus,
   gitUnstage,
+  gitUnstageAll,
   readFileTree,
   readWorkspaceFile,
   writeWorkspaceFile,
@@ -243,7 +246,8 @@ export function createApp(options: { settings: SettingsService }) {
   app.post(HttpPaths.gitStage, async (c) => {
     try {
       const body = (await c.req.json()) as GitStageRequest;
-      await gitStage(cwd(), body.paths ?? []);
+      if (body.all) await gitStageAll(cwd());
+      else await gitStage(cwd(), body.paths ?? []);
       return c.json(await gitStatus(cwd()));
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -253,7 +257,8 @@ export function createApp(options: { settings: SettingsService }) {
   app.post(HttpPaths.gitUnstage, async (c) => {
     try {
       const body = (await c.req.json()) as GitStageRequest;
-      await gitUnstage(cwd(), body.paths ?? []);
+      if (body.all) await gitUnstageAll(cwd());
+      else await gitUnstage(cwd(), body.paths ?? []);
       return c.json(await gitStatus(cwd()));
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
@@ -302,6 +307,15 @@ export function createApp(options: { settings: SettingsService }) {
   app.post(HttpPaths.gitFetch, async (c) => {
     try {
       const message = await gitFetch(cwd());
+      return c.json({ message, status: await gitStatus(cwd()) });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.post(HttpPaths.gitInit, async (c) => {
+    try {
+      const message = await gitInit(cwd());
       return c.json({ message, status: await gitStatus(cwd()) });
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
