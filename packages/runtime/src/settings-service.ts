@@ -2,11 +2,8 @@ import fs from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type {
-  ApiTypeOptionDto,
   AppSettingsDto,
-  ModelOptionDto,
   ProjectInfoDto,
-  ProviderOptionDto,
   SaveModelSettingsRequest,
 } from '@aircode/shared';
 import { SettingsDb, defaultDbPath, resolveClaudeHome } from './settings-db.js';
@@ -19,46 +16,13 @@ const KEY_PROJECT_RECENT = 'project.recent';
 const MAX_RECENT = 12;
 
 export interface StoredModelConnection {
-  providerId: string;
-  apiType: string;
   baseUrl: string;
-  defaultModel: string;
+  model: string;
 }
 
-const PROVIDERS: ProviderOptionDto[] = [
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    defaultBaseUrl: 'https://api.anthropic.com',
-    defaultApiType: 'anthropic-messages',
-  },
-  {
-    id: 'custom',
-    name: '自定义 / 兼容网关',
-    defaultBaseUrl: '',
-    defaultApiType: 'anthropic-messages',
-  },
-];
-
-const API_TYPES: ApiTypeOptionDto[] = [
-  { id: 'anthropic-messages', label: 'Anthropic Messages' },
-  { id: 'openai-completions', label: 'OpenAI Completions（兼容网关）' },
-];
-
-const MODELS: ModelOptionDto[] = [
-  { id: 'sonnet', name: 'Claude Sonnet（推荐）', providerId: 'anthropic' },
-  { id: 'opus', name: 'Claude Opus', providerId: 'anthropic' },
-  { id: 'haiku', name: 'Claude Haiku', providerId: 'anthropic' },
-  { id: 'claude-sonnet-4-20250514', name: 'claude-sonnet-4-20250514', providerId: 'anthropic' },
-  { id: 'claude-opus-4-20250514', name: 'claude-opus-4-20250514', providerId: 'anthropic' },
-  { id: 'claude-haiku-4-20250514', name: 'claude-haiku-4-20250514', providerId: 'anthropic' },
-];
-
 const DEFAULT_CONNECTION: StoredModelConnection = {
-  providerId: 'anthropic',
-  apiType: 'anthropic-messages',
-  baseUrl: 'https://api.anthropic.com',
-  defaultModel: 'sonnet',
+  baseUrl: '',
+  model: '',
 };
 
 export function expandUserPath(input: string): string {
@@ -71,7 +35,7 @@ export function expandUserPath(input: string): string {
 
 /**
  * 应用设置服务：模型 / 项目等持久化到 SQLite。
- * API Key 等仅存库，不从 .env 读取。
+ * Token 等仅存库，不从 .env 读取。
  */
 export class SettingsService {
   readonly claudeHome: string;
@@ -87,13 +51,17 @@ export class SettingsService {
   }
 
   getConnection(): StoredModelConnection {
-    const stored = this.db.getJson<Partial<StoredModelConnection>>(KEY_MODEL);
+    const stored = this.db.getJson<Partial<StoredModelConnection> & {
+      defaultModel?: string;
+    }>(KEY_MODEL);
+    const model =
+      stored?.model?.trim() ||
+      stored?.defaultModel?.trim() ||
+      DEFAULT_CONNECTION.model;
     return {
-      providerId: stored?.providerId?.trim() || DEFAULT_CONNECTION.providerId,
-      apiType: stored?.apiType?.trim() || DEFAULT_CONNECTION.apiType,
       baseUrl:
         typeof stored?.baseUrl === 'string' ? stored.baseUrl : DEFAULT_CONNECTION.baseUrl,
-      defaultModel: stored?.defaultModel?.trim() || DEFAULT_CONNECTION.defaultModel,
+      model,
     };
   }
 
@@ -106,7 +74,7 @@ export class SettingsService {
   }
 
   getDefaultModel(): string {
-    return this.getConnection().defaultModel;
+    return this.getConnection().model;
   }
 
   /** 当前项目工作目录；未选择时为 null */
@@ -159,12 +127,10 @@ export class SettingsService {
   getAppSettings(): AppSettingsDto {
     const connection = this.getConnection();
     return {
-      providers: PROVIDERS,
-      apiTypes: API_TYPES,
-      models: MODELS,
       connection: {
-        ...connection,
-        hasApiKey: this.hasApiKey(),
+        baseUrl: connection.baseUrl,
+        model: connection.model,
+        hasToken: this.hasApiKey(),
       },
       project: this.getProjectInfo(),
       claudeHome: this.claudeHome,
@@ -173,27 +139,16 @@ export class SettingsService {
   }
 
   saveModelSettings(req: SaveModelSettingsRequest): AppSettingsDto {
-    const providerId = req.providerId?.trim() || 'anthropic';
-    const apiType = req.apiType?.trim() || 'anthropic-messages';
     const baseUrl = (req.baseUrl ?? '').trim();
-    const defaultModel = req.defaultModel?.trim() || 'sonnet';
-
-    if (!PROVIDERS.some((p) => p.id === providerId)) {
-      throw new Error(`未知供应商：${providerId}`);
-    }
-    if (!API_TYPES.some((t) => t.id === apiType)) {
-      throw new Error(`未知接口类型：${apiType}`);
+    const model = req.model?.trim() || '';
+    if (!model) {
+      throw new Error('请填写模型 ID');
     }
 
-    const connection: StoredModelConnection = {
-      providerId,
-      apiType,
-      baseUrl,
-      defaultModel,
-    };
+    const connection: StoredModelConnection = { baseUrl, model };
     this.db.setJson(KEY_MODEL, connection);
 
-    const incoming = req.apiKey?.trim();
+    const incoming = req.token?.trim();
     if (incoming) {
       this.db.set(KEY_API_KEY, incoming);
     }
@@ -201,9 +156,9 @@ export class SettingsService {
     return this.getAppSettings();
   }
 
-  clearModelSettings(clearApiKey = true): AppSettingsDto {
+  clearModelSettings(clearToken = true): AppSettingsDto {
     this.db.setJson(KEY_MODEL, DEFAULT_CONNECTION);
-    if (clearApiKey) {
+    if (clearToken) {
       this.db.delete(KEY_API_KEY);
     }
     return this.getAppSettings();
@@ -212,14 +167,13 @@ export class SettingsService {
   /** 供 AgentHost 注入 SDK 子进程环境 */
   buildAuthEnv(): Record<string, string> {
     const connection = this.getConnection();
-    const apiKey = this.getApiKey();
+    const token = this.getApiKey();
     const env: Record<string, string> = {};
 
-    if (apiKey) {
-      env.ANTHROPIC_API_KEY = apiKey;
-      if (connection.apiType === 'openai-completions' || connection.providerId === 'custom') {
-        env.ANTHROPIC_AUTH_TOKEN = apiKey;
-      }
+    if (token) {
+      // 官方与多数兼容网关均可用；自定义 baseUrl 时 AUTH_TOKEN 更常见
+      env.ANTHROPIC_API_KEY = token;
+      env.ANTHROPIC_AUTH_TOKEN = token;
     }
 
     if (connection.baseUrl.trim()) {

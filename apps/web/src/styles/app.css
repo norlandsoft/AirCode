@@ -466,6 +466,9 @@ body,
 }
 
 .ac-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
   color: var(--ac-muted);
@@ -473,10 +476,48 @@ body,
   font-size: 16px;
   min-width: 32px;
   min-height: 32px;
+  border-radius: 6px;
+  padding: 0;
 }
 
 .ac-icon-btn:hover {
   color: var(--ac-text);
+  background: var(--ac-surface-2);
+}
+
+.ac-topbar-settings.active {
+  color: var(--ac-accent);
+  background: var(--ac-accent-soft);
+}
+
+.ac-settings-subtabs {
+  display: flex;
+  flex-shrink: 0;
+  height: 34px;
+  border-bottom: 1px solid var(--ac-border);
+  background: var(--ac-surface);
+  padding: 0 8px;
+  gap: 2px;
+}
+
+.ac-settings-subtabs button {
+  border: 0;
+  background: transparent;
+  color: var(--ac-text-secondary);
+  font-size: 12px;
+  padding: 0 12px;
+  height: 100%;
+  cursor: pointer;
+}
+
+.ac-settings-subtabs button:hover {
+  color: var(--ac-text);
+}
+
+.ac-settings-subtabs button.active {
+  color: var(--ac-accent);
+  box-shadow: inset 0 -2px 0 var(--ac-accent);
+  font-weight: 600;
 }
 
 /* —— 通用面板 / 表单 —— */

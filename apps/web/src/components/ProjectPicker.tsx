@@ -56,7 +56,7 @@ export function ProjectPicker({ onSelected }: Props) {
     <div className="ac-project-picker">
       <div className="ac-project-hero">
         <h1>选择项目</h1>
-        <p>智能体工作目录 = 项目目录。模型与 API Key 在「设置」中配置（SQLite）。</p>
+        <p>智能体工作目录 = 项目目录。模型（Base URL / Token / Model）在「设置」中配置。</p>
       </div>
 
       {info?.recent?.length ? (

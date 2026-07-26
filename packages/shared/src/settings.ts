@@ -1,30 +1,10 @@
 /** 本地设置（SQLite）相关 DTO */
 
-export interface ProviderOptionDto {
-  id: string;
-  name: string;
-  defaultBaseUrl?: string;
-  defaultApiType?: string;
-}
-
-export interface ApiTypeOptionDto {
-  id: string;
-  label: string;
-}
-
-export interface ModelOptionDto {
-  id: string;
-  name: string;
-  providerId: string;
-}
-
 export interface ModelConnectionDto {
-  providerId: string;
-  apiType: string;
   baseUrl: string;
   /** 是否已存储 Token（永不返回明文） */
-  hasApiKey: boolean;
-  defaultModel: string;
+  hasToken: boolean;
+  model: string;
 }
 
 export interface ProjectInfoDto {
@@ -48,22 +28,18 @@ export interface BrowseResultDto {
 }
 
 export interface AppSettingsDto {
-  providers: ProviderOptionDto[];
-  apiTypes: ApiTypeOptionDto[];
-  models: ModelOptionDto[];
   connection: ModelConnectionDto;
   project: ProjectInfoDto;
   claudeHome: string;
   dbPath: string;
 }
 
+/** 自由填写，不绑定固定供应商 */
 export interface SaveModelSettingsRequest {
-  providerId: string;
-  apiType: string;
   baseUrl: string;
-  defaultModel: string;
+  model: string;
   /** 省略或空字符串表示保留原 Token */
-  apiKey?: string;
+  token?: string;
 }
 
 export interface SetProjectRequest {
@@ -71,5 +47,5 @@ export interface SetProjectRequest {
 }
 
 export interface ClearModelSettingsRequest {
-  clearApiKey?: boolean;
+  clearToken?: boolean;
 }

@@ -79,7 +79,7 @@ export function App() {
       setSessions(list);
       setTree(files.tree);
       if (!ws.hasApiKey) {
-        message.warning('未配置 API Key，请打开设置填写');
+        message.warning('未配置 Token，请打开设置填写');
       }
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
@@ -439,16 +439,18 @@ export function App() {
             <div className="ac-topbar-actions">
               <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
                 {workspace?.hasApiKey
-                  ? workspace.defaultModel ?? '已配置'
-                  : '无 Key'}
+                  ? workspace.defaultModel || '已配置'
+                  : '无 Token'}
               </span>
-              <Button
-                size="sm"
-                type={workTab === 'settings' ? 'primary' : 'default'}
+              <button
+                type="button"
+                className={`ac-icon-btn ac-topbar-settings ${workTab === 'settings' ? 'active' : ''}`}
+                aria-label="设置"
+                title="设置"
                 onClick={() => setWorkTab(workTab === 'settings' ? 'chat' : 'settings')}
               >
-                设置
-              </Button>
+                <Icon name="settings" size={16} />
+              </button>
             </div>
           </>
         ) : (
@@ -457,7 +459,7 @@ export function App() {
               {cwdLabel}
             </span>
             <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
-              {workspace?.hasApiKey ? 'Key' : '无 Key'}
+              {workspace?.hasApiKey ? 'Token' : '无 Token'}
             </span>
           </div>
         )}

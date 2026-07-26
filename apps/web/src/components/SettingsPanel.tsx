@@ -8,35 +8,30 @@ interface Props {
   onSaved?: () => void;
 }
 
+/** 设置子 Tab；后续可扩展其它配置页 */
+type SettingsSubTab = 'model';
+
+const SUB_TABS: { id: SettingsSubTab; label: string }[] = [
+  { id: 'model', label: '模型' },
+];
+
 export function SettingsPanel({ onClose, onSaved }: Props) {
   const [data, setData] = useState<AppSettingsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [providerId, setProviderId] = useState('anthropic');
-  const [apiType, setApiType] = useState('anthropic-messages');
+  const [subTab, setSubTab] = useState<SettingsSubTab>('model');
   const [baseUrl, setBaseUrl] = useState('');
-  const [defaultModel, setDefaultModel] = useState('sonnet');
-  const [customModel, setCustomModel] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('');
+  const [token, setToken] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       const settings = await api.getSettings();
       setData(settings);
-      setProviderId(settings.connection.providerId);
-      setApiType(settings.connection.apiType);
       setBaseUrl(settings.connection.baseUrl);
-      const model = settings.connection.defaultModel || 'sonnet';
-      const known = settings.models.some((m) => m.id === model);
-      if (known) {
-        setDefaultModel(model);
-        setCustomModel('');
-      } else {
-        setDefaultModel('__custom__');
-        setCustomModel(model);
-      }
-      setApiKey('');
+      setModel(settings.connection.model);
+      setToken('');
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -48,31 +43,20 @@ export function SettingsPanel({ onClose, onSaved }: Props) {
     void reload();
   }, [reload]);
 
-  function onProviderChange(id: string) {
-    setProviderId(id);
-    const provider = data?.providers.find((p) => p.id === id);
-    if (provider?.defaultApiType) setApiType(provider.defaultApiType);
-    if (provider?.defaultBaseUrl !== undefined) setBaseUrl(provider.defaultBaseUrl);
-  }
-
   async function onSave() {
-    const model =
-      defaultModel === '__custom__' ? customModel.trim() : defaultModel.trim();
-    if (!model) {
-      message.error('请选择或填写默认模型');
+    if (!model.trim()) {
+      message.error('请填写模型 ID');
       return;
     }
     setSaving(true);
     try {
       const next = await api.saveModelSettings({
-        providerId,
-        apiType,
         baseUrl,
-        defaultModel: model,
-        apiKey: apiKey.trim() || undefined,
+        model: model.trim(),
+        token: token.trim() || undefined,
       });
       setData(next);
-      setApiKey('');
+      setToken('');
       message.success('模型设置已保存');
       onSaved?.();
     } catch (err) {
@@ -87,12 +71,9 @@ export function SettingsPanel({ onClose, onSaved }: Props) {
     try {
       const next = await api.clearModelSettings();
       setData(next);
-      setProviderId(next.connection.providerId);
-      setApiType(next.connection.apiType);
       setBaseUrl(next.connection.baseUrl);
-      setDefaultModel(next.connection.defaultModel);
-      setCustomModel('');
-      setApiKey('');
+      setModel(next.connection.model);
+      setToken('');
       message.success('已重置模型设置');
       onSaved?.();
     } catch (err) {
@@ -116,7 +97,7 @@ export function SettingsPanel({ onClose, onSaved }: Props) {
   return (
     <div className="ac-panel ac-settings-panel">
       <div className="ac-panel-head">
-        <span>设置 · 模型</span>
+        <span>设置</span>
         <div className="ac-panel-actions">
           {onClose ? (
             <Button size="sm" onClick={onClose}>
@@ -126,106 +107,74 @@ export function SettingsPanel({ onClose, onSaved }: Props) {
         </div>
       </div>
 
-      <div className="ac-settings-body">
-        <p className="ac-muted-block">
-          模型与 API Key 保存在 SQLite
-          {data?.dbPath ? `（${data.dbPath}）` : ''}；Claude Home：
-          {data?.claudeHome ?? '…'}。项目工作目录请在「项目」中选择。.env 仅配置端口与
-          CLAUDE_HOME。
-        </p>
-
-        <label className="ac-field">
-          <span>供应商</span>
-          <select
-            className="ac-select"
-            value={providerId}
-            onChange={(e) => onProviderChange(e.target.value)}
+      <nav className="ac-settings-subtabs" aria-label="设置分类">
+        {SUB_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={subTab === t.id ? 'active' : ''}
+            onClick={() => setSubTab(t.id)}
           >
-            {(data?.providers ?? []).map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-        <label className="ac-field">
-          <span>接口类型</span>
-          <select
-            className="ac-select"
-            value={apiType}
-            onChange={(e) => setApiType(e.target.value)}
-          >
-            {(data?.apiTypes ?? []).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      {subTab === 'model' ? (
+        <div className="ac-settings-body">
+          <p className="ac-muted-block">
+            填写 Base URL、Token、模型 ID 即可对接任意兼容服务，不绑定固定供应商。保存在
+            SQLite
+            {data?.dbPath ? `（${data.dbPath}）` : ''}。
+          </p>
 
-        <label className="ac-field">
-          <span>Base URL</span>
-          <input
-            className="ac-input"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.anthropic.com"
-          />
-        </label>
-
-        <label className="ac-field">
-          <span>API Key {data?.connection.hasApiKey ? '（已保存，留空则不变）' : ''}</span>
-          <input
-            className="ac-input"
-            type="password"
-            autoComplete="off"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={data?.connection.hasApiKey ? '••••••••' : 'sk-…'}
-          />
-        </label>
-
-        <label className="ac-field">
-          <span>默认模型</span>
-          <select
-            className="ac-select"
-            value={defaultModel}
-            onChange={(e) => setDefaultModel(e.target.value)}
-          >
-            {(data?.models ?? []).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-            <option value="__custom__">自定义…</option>
-          </select>
-        </label>
-
-        {defaultModel === '__custom__' ? (
           <label className="ac-field">
-            <span>自定义模型 ID</span>
+            <span>Base URL</span>
             <input
               className="ac-input"
-              value={customModel}
-              onChange={(e) => setCustomModel(e.target.value)}
-              placeholder="claude-…"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.anthropic.com 或兼容网关地址"
+              autoComplete="off"
             />
           </label>
-        ) : null}
 
-        <div className="ac-settings-actions">
-          <Button type="primary" disabled={saving} onClick={() => void onSave()}>
-            {saving ? '保存中…' : '保存'}
-          </Button>
-          <Button disabled={saving} onClick={() => void onClear()}>
-            重置
-          </Button>
-          <Button disabled={saving} onClick={() => void reload()}>
-            刷新
-          </Button>
+          <label className="ac-field">
+            <span>Token {data?.connection.hasToken ? '（已保存，留空则不变）' : ''}</span>
+            <input
+              className="ac-input"
+              type="password"
+              autoComplete="off"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={data?.connection.hasToken ? '••••••••' : 'API Token / Key'}
+            />
+          </label>
+
+          <label className="ac-field">
+            <span>Model</span>
+            <input
+              className="ac-input"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="如 sonnet、claude-sonnet-4-… 或网关模型名"
+              autoComplete="off"
+            />
+          </label>
+
+          <div className="ac-settings-actions">
+            <Button type="primary" disabled={saving} onClick={() => void onSave()}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
+            <Button disabled={saving} onClick={() => void onClear()}>
+              重置
+            </Button>
+            <Button disabled={saving} onClick={() => void reload()}>
+              刷新
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
