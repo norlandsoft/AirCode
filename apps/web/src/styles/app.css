@@ -636,11 +636,11 @@ body,
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 40px;
+  height: 60px;
   padding: 0 10px;
   border-bottom: 1px solid var(--ac-border);
-  background: #2d333b;
-  color: #fff;
+  background: var(--ac-surface);
+  color: var(--ac-text);
   flex-shrink: 0;
 }
 
@@ -653,22 +653,15 @@ body,
 }
 
 .ac-git-branch-select {
-  min-width: 120px;
-  max-width: 220px;
-  background: #444c56;
-  border-color: #444c56;
-  color: #fff;
+  min-width: 140px;
+  max-width: 240px;
 }
 
 .ac-git-sync-badge {
   font-size: 11px;
-  color: #adbac7;
+  color: var(--ac-text-secondary);
   font-family: var(--ac-mono);
-}
-
-.ac-git-toolbar .air-btn,
-.ac-git-toolbar button {
-  color: inherit;
+  white-space: nowrap;
 }
 
 .ac-git-body {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, message, Splitter } from '@air/design';
+import { Button, message, Select, Splitter } from '@air/design';
 import type {
   GitBranchDto,
   GitCommitFileDto,
@@ -189,6 +189,12 @@ export function GitPanel({ projectCwd, onOpenFile, onOpenChat }: Props) {
       else await api.gitUnstage([file.path]);
     });
   }
+
+  // hooks 必须位于所有 early return 之前，保证每次渲染 hook 数量一致
+  const branchOptions = useMemo(
+    () => branches.map((b) => ({ value: b.name, label: b.name })),
+    [branches],
+  );
 
   async function toggleStageAll(checked: boolean) {
     await run(async () => {
@@ -499,23 +505,20 @@ export function GitPanel({ projectCwd, onOpenFile, onOpenChat }: Props) {
     <div className="ac-panel ac-git-desktop">
       <div className="ac-git-toolbar">
         <div className="ac-git-toolbar-left">
-          <select
-            className="ac-select ac-git-branch-select"
-            value={status?.branch ?? ''}
-            disabled={busy}
-            onChange={(e) => {
-              const branch = e.target.value;
+          <Select
+            className="ac-git-branch-select"
+            value={status?.branch || undefined}
+            disabled={busy || branchOptions.length === 0}
+            options={branchOptions}
+            placeholder="选择分支"
+            allowClear={false}
+            onChange={(value) => {
+              const branch = value == null ? '' : String(value);
               if (branch && branch !== status?.branch) {
                 void run(() => api.gitCheckout(branch), `已切换到 ${branch}`);
               }
             }}
-          >
-            {branches.map((b) => (
-              <option key={b.name} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          />
           {status && (status.ahead > 0 || status.behind > 0) ? (
             <span className="ac-git-sync-badge">
               ↑{status.ahead} ↓{status.behind}
@@ -523,18 +526,12 @@ export function GitPanel({ projectCwd, onOpenFile, onOpenChat }: Props) {
           ) : null}
         </div>
         <div className="ac-git-toolbar-right">
-          <Button size="sm" disabled={busy} onClick={() => void refresh()}>
+          <Button size="sm" type="default" disabled={busy} onClick={() => void refresh()}>
             刷新
           </Button>
           <Button
             size="sm"
-            disabled={busy}
-            onClick={() => void run(() => api.gitFetch(), 'Fetch 完成')}
-          >
-            Fetch
-          </Button>
-          <Button
-            size="sm"
+            type="default"
             disabled={busy}
             onClick={() => void run(() => api.gitPull(), 'Pull 完成')}
           >
