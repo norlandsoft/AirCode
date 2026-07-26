@@ -186,66 +186,95 @@ body,
   background: var(--ac-bg);
 }
 
-/* —— 侧栏 / 会话 —— */
+/* —— 侧栏 / 会话（接近 Claude Desktop） —— */
 .ac-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--ac-border);
-  background: var(--ac-surface);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-right: none;
+  background: #f7f7f5;
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
-.ac-sidebar-toolbar {
+.ac-sidebar-head {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  padding: 8px;
-  border-bottom: 1px solid var(--ac-border);
+  padding: 14px 14px 10px;
   flex-shrink: 0;
+}
+
+.ac-sidebar-new-link {
+  border: 0;
+  background: transparent;
+  color: var(--ac-text);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.ac-sidebar-new-link:hover {
+  color: var(--ac-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .ac-session-list {
   list-style: none;
   margin: 0;
-  padding: 0 6px 12px;
+  padding: 4px 8px 16px;
   overflow: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .ac-session-list li {
   display: flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: 10px;
   margin-bottom: 2px;
+  transition: background 0.12s ease;
+}
+
+.ac-session-list li:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .ac-session-list li.active {
-  background: var(--ac-accent-soft);
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.ac-session-list li:hover .ac-session-del,
+.ac-session-list li.active .ac-session-del {
+  opacity: 1;
 }
 
 .ac-session-item {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--ac-text);
   text-align: left;
-  padding: 8px;
+  padding: 10px 10px;
   cursor: pointer;
   min-width: 0;
-  min-height: 36px;
+  min-height: 40px;
 }
 
 .ac-session-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 450;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
 }
 
 .ac-session-del {
@@ -253,9 +282,12 @@ body,
   background: transparent;
   color: var(--ac-muted);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 10px;
   font-size: 16px;
   line-height: 1;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
 }
 
 .ac-session-del:hover {
@@ -271,14 +303,30 @@ body,
 }
 
 .ac-empty {
-  padding: 16px;
+  padding: 16px 12px;
   color: var(--ac-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* —— 对话 —— */
 .ac-chat-layout {
-  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ac-bg);
+}
+
+.ac-chat-layout .air-splitter {
+  height: 100%;
+  min-height: 0;
+}
+
+.ac-chat-layout .air-splitter-panel {
+  overflow: hidden;
+  height: 100%;
+}
+
+.ac-chat-layout .air-splitter-panel > * {
   height: 100%;
   min-height: 0;
 }
@@ -333,22 +381,40 @@ body,
   justify-content: center;
   padding: 24px;
   gap: 8px;
+  min-height: 0;
 }
 
 .ac-welcome h1 {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .ac-welcome p {
   margin: 0 0 16px;
   color: var(--ac-muted);
   font-size: 13px;
+  flex: 0 0 auto;
 }
 
-.ac-welcome .air-chat-input-full {
+/* 避免 flex 列把输入框纵向撑满（刷新后异常增高） */
+.ac-welcome-input {
   width: min(520px, 100%);
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.ac-welcome-input .chat-input-wrapper,
+.ac-welcome-input .air-chat-input-full {
+  width: 100%;
+  height: auto !important;
+  flex: none;
+  align-self: auto;
+}
+
+.ac-welcome-input .chat-input {
+  max-height: 11.25rem; /* 与 ChatInput MAX_HEIGHT 180px 一致 */
 }
 
 .air-chat-input-full {

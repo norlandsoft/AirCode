@@ -1,4 +1,3 @@
-import { IconButton } from '@air/design';
 import type { SessionSummaryDto } from '@aircode/shared';
 
 interface Props {
@@ -12,8 +11,10 @@ interface Props {
 export function SessionSidebar({ sessions, activeId, onNew, onSelect, onDelete }: Props) {
   return (
     <aside className="ac-sidebar">
-      <div className="ac-sidebar-toolbar">
-        <IconButton icon="plus" size={30} tooltip="新会话" onClick={onNew} />
+      <div className="ac-sidebar-head">
+        <button type="button" className="ac-sidebar-new-link" onClick={onNew}>
+          新建会话
+        </button>
       </div>
       <ul className="ac-session-list">
         {sessions.map((s) => (
@@ -26,6 +27,7 @@ export function SessionSidebar({ sessions, activeId, onNew, onSelect, onDelete }
               type="button"
               className="ac-session-del"
               title="删除"
+              aria-label="删除会话"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(s.id);

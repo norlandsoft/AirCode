@@ -256,17 +256,8 @@ export function App() {
 
   const chatPane = (
     <div className="ac-chat-layout">
-      {!isPhone ? (
-        <SessionSidebar
-          sessions={sessions}
-          activeId={activeId}
-          onNew={() => void handleNewSession()}
-          onSelect={(id) => setActiveId(id)}
-          onDelete={(id) => void handleDeleteSession(id)}
-        />
-      ) : null}
-      <div className="ac-chat">
-        {isPhone ? (
+      {isPhone ? (
+        <div className="ac-chat">
           <div className="ac-chat-mobile-sessions">
             <Button size="sm" type="primary" onClick={() => void handleNewSession()}>
               新会话
@@ -284,46 +275,104 @@ export function App() {
               ))}
             </select>
           </div>
-        ) : null}
-        {!activeId && chatList.length === 0 && !loading ? (
-          <div className="ac-welcome">
-            <h1>Claude Code</h1>
-            <p>描述任务，Agent 将在当前项目目录中执行</p>
-            <ChatInput
-              className="air-chat-input-full"
-              onSend={handleSend}
-              finished
-              showAttachment={false}
-              placeholder="描述你想完成的任务…"
+          {!activeId && chatList.length === 0 && !loading ? (
+            <div className="ac-welcome">
+              <h1>Claude Code</h1>
+              <p>描述任务，Agent 将在当前项目目录中执行</p>
+              <div className="ac-welcome-input">
+                <ChatInput
+                  className="air-chat-input-full"
+                  onSend={handleSend}
+                  finished
+                  showAttachment={false}
+                  placeholder="描述你想完成的任务…"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <div ref={viewRef} className="ac-chat-view">
+                <ChatView
+                  height={chatSize.h}
+                  width={chatSize.w}
+                  chatList={chatList}
+                  lastContent={lastContent}
+                  loading={loading}
+                  assistantName="Claude"
+                  contentPadding={12}
+                />
+              </div>
+              <div className="ac-chat-input">
+                <ChatInput
+                  className="air-chat-input-full"
+                  onSend={handleSend}
+                  onStop={handleStop}
+                  finished={!loading}
+                  disabled={false}
+                  showAttachment={false}
+                  placeholder="继续对话…"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
+          <Splitter.Panel defaultSize={240} min={180} max={400}>
+            <SessionSidebar
+              sessions={sessions}
+              activeId={activeId}
+              onNew={() => void handleNewSession()}
+              onSelect={(id) => setActiveId(id)}
+              onDelete={(id) => void handleDeleteSession(id)}
             />
-          </div>
-        ) : (
-          <>
-            <div ref={viewRef} className="ac-chat-view">
-              <ChatView
-                height={chatSize.h}
-                width={chatSize.w}
-                chatList={chatList}
-                lastContent={lastContent}
-                loading={loading}
-                assistantName="Claude"
-                contentPadding={12}
-              />
+          </Splitter.Panel>
+          <Splitter.Panel min={320}>
+            <div className="ac-chat">
+              {!activeId && chatList.length === 0 && !loading ? (
+                <div className="ac-welcome">
+                  <h1>Claude Code</h1>
+                  <p>描述任务，Agent 将在当前项目目录中执行</p>
+                  <div className="ac-welcome-input">
+                    <ChatInput
+                      className="air-chat-input-full"
+                      onSend={handleSend}
+                      finished
+                      showAttachment={false}
+                      placeholder="描述你想完成的任务…"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div ref={viewRef} className="ac-chat-view">
+                    <ChatView
+                      height={chatSize.h}
+                      width={chatSize.w}
+                      chatList={chatList}
+                      lastContent={lastContent}
+                      loading={loading}
+                      assistantName="Claude"
+                      contentPadding={12}
+                    />
+                  </div>
+                  <div className="ac-chat-input">
+                    <ChatInput
+                      className="air-chat-input-full"
+                      onSend={handleSend}
+                      onStop={handleStop}
+                      finished={!loading}
+                      disabled={false}
+                      showAttachment={false}
+                      placeholder="继续对话…"
+                    />
+                  </div>
+                </>
+              )}
             </div>
-            <div className="ac-chat-input">
-              <ChatInput
-                className="air-chat-input-full"
-                onSend={handleSend}
-                onStop={handleStop}
-                finished={!loading}
-                disabled={false}
-                showAttachment={false}
-                placeholder="继续对话…"
-              />
-            </div>
-          </>
-        )}
-      </div>
+          </Splitter.Panel>
+        </Splitter>
+      )}
     </div>
   );
 
