@@ -310,6 +310,16 @@ body,
   min-height: 0;
 }
 
+/* 对话列表只展示正文，不显示 You / Claude 等角色名 */
+.ac-chat-view .chat-msg-header {
+  display: none;
+}
+
+.ac-chat-view .chat-msg-assistant {
+  /* 去掉标题后略收紧上边距观感 */
+  padding-top: 0.75rem;
+}
+
 .ac-chat-input {
   padding: 8px 10px 12px;
   background: var(--ac-surface);
