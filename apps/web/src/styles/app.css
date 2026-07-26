@@ -197,8 +197,14 @@ body,
   height: 100%;
 }
 
-.ac-sidebar-head {
-  padding: 10px;
+.ac-sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--ac-border);
+  flex-shrink: 0;
 }
 
 .ac-session-list {
