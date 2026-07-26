@@ -318,13 +318,15 @@ export function App() {
         </div>
       ) : (
         <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
-          <Splitter.Panel defaultSize={240} min={180} max={400}>
+          <Splitter.Panel defaultSize={260} min={200} max={400}>
             <SessionSidebar
               sessions={sessions}
               activeId={activeId}
+              projectLabel={cwdLabel}
               onNew={() => void handleNewSession()}
               onSelect={(id) => setActiveId(id)}
               onDelete={(id) => void handleDeleteSession(id)}
+              onOpenSettings={() => setWorkTab('settings')}
             />
           </Splitter.Panel>
           <Splitter.Panel min={320}>
