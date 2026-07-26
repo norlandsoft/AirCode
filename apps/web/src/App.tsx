@@ -20,8 +20,10 @@ import { FileTree } from './components/FileTree';
 import { EditorPane } from './components/EditorPane';
 import { GitPanel } from './components/GitPanel';
 import { JobsPanel } from './components/JobsPanel';
+import { SettingsPanel } from './components/SettingsPanel';
+import { ProjectPicker } from './components/ProjectPicker';
 
-type NavTab = 'sessions' | 'files' | 'editor' | 'chat' | 'git' | 'jobs';
+type NavTab = 'sessions' | 'files' | 'editor' | 'chat' | 'git' | 'jobs' | 'settings' | 'project';
 type LayoutMode = 'phone' | 'pad' | 'desktop';
 
 function useLayoutMode(): LayoutMode {
@@ -77,25 +79,30 @@ export function App() {
     setTree(files.tree);
   }, []);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [ws, list, files] = await Promise.all([
-          api.workspace(),
-          api.listSessions(),
-          api.fileTree(4),
-        ]);
-        setWorkspace(ws);
-        setSessions(list);
-        setTree(files.tree);
-        if (!ws.hasApiKey) {
-          message.warning('未检测到 ANTHROPIC_API_KEY，请在项目根目录配置 .env');
-        }
-      } catch (err) {
-        message.error(err instanceof Error ? err.message : String(err));
+  const bootstrap = useCallback(async () => {
+    try {
+      const ws = await api.workspace();
+      setWorkspace(ws);
+      if (!ws.hasProject) {
+        setNav('project');
+        setSessions([]);
+        setTree([]);
+        return;
       }
-    })();
+      const [list, files] = await Promise.all([api.listSessions(), api.fileTree(4)]);
+      setSessions(list);
+      setTree(files.tree);
+      if (!ws.hasApiKey) {
+        message.warning('未配置 API Key，请打开「设置」填写');
+      }
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err));
+    }
   }, []);
+
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
 
   useEffect(() => {
     const el = viewRef.current;
@@ -241,7 +248,8 @@ export function App() {
     }
   }
 
-  const cwdLabel = workspace?.cwd ?? '…';
+  const cwdLabel = workspace?.cwd ?? '未选择项目';
+  const needsProject = !workspace?.hasProject;
 
   const chatPane = (
     <div className="ac-chat">
@@ -341,6 +349,33 @@ export function App() {
   );
 
   function renderDesktop() {
+    if (nav === 'project' || needsProject) {
+      return (
+        <div className="ac-body">
+          <div className="ac-main ac-settings-full">
+            <ProjectPicker
+              onSelected={() => {
+                void bootstrap().then(() => setNav('chat'));
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
+    if (nav === 'settings') {
+      return (
+        <div className="ac-body">
+          <div className="ac-main ac-settings-full">
+            <SettingsPanel
+              onClose={() => setNav('chat')}
+              onSaved={() => {
+                void api.workspace().then(setWorkspace);
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="ac-body">
         <SessionSidebar
@@ -371,6 +406,19 @@ export function App() {
   }
 
   function renderPad() {
+    if (nav === 'project' || needsProject) {
+      return (
+        <div className="ac-body ac-body-pad">
+          <div className="ac-main">
+            <ProjectPicker
+              onSelected={() => {
+                void bootstrap().then(() => setNav('chat'));
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="ac-body ac-body-pad">
         <div className="ac-main">
@@ -401,6 +449,14 @@ export function App() {
           {nav === 'editor' ? editorPane : null}
           {nav === 'chat' ? chatPane : null}
           {nav === 'jobs' ? <JobsPanel /> : null}
+          {nav === 'settings' ? (
+            <SettingsPanel
+              onClose={() => setNav('chat')}
+              onSaved={() => {
+                void api.workspace().then(setWorkspace);
+              }}
+            />
+          ) : null}
         </div>
       </div>
     );
@@ -411,12 +467,14 @@ export function App() {
   }
 
   const tabs: { id: NavTab; label: string }[] = [
+    { id: 'project', label: '项目' },
     { id: 'sessions', label: '会话' },
     { id: 'files', label: '文件' },
     { id: 'editor', label: '编辑' },
     { id: 'chat', label: '对话' },
     { id: 'git', label: 'Git' },
     { id: 'jobs', label: '任务' },
+    { id: 'settings', label: '设置' },
   ];
 
   return (
@@ -446,10 +504,26 @@ export function App() {
               >
                 Git
               </Button>
+              <Button
+                size="sm"
+                type={nav === 'project' ? 'primary' : 'default'}
+                onClick={() => setNav('project')}
+              >
+                项目
+              </Button>
+              <Button
+                size="sm"
+                type={nav === 'settings' ? 'primary' : 'default'}
+                onClick={() => setNav(nav === 'settings' ? 'chat' : 'settings')}
+              >
+                设置
+              </Button>
             </>
           ) : null}
           <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
-            {workspace?.hasApiKey ? 'API Key' : '无 Key'}
+            {workspace?.hasApiKey
+              ? `Key · ${workspace.defaultModel ?? 'model'}`
+              : '无 Key'}
           </span>
         </div>
       </header>

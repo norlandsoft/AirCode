@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import {
   AgentHost,
+  SettingsService,
   ShellJobRunner,
+  browseDirectories,
   gitBranches,
   gitCheckout,
   gitCommit,
@@ -26,6 +28,8 @@ import type {
   GitCommitRequest,
   GitStageRequest,
   PromptRequest,
+  SaveModelSettingsRequest,
+  SetProjectRequest,
   WriteFileRequest,
 } from '@aircode/shared';
 import { jobEventStream, sessionEventStream } from './sse.js';
@@ -37,46 +41,84 @@ function requireParam(c: Context, name: string): string {
   return value;
 }
 
-function resolveCorsOrigins(): string[] {
-  const raw = process.env.AIRCODE_CORS_ORIGIN?.trim();
-  if (raw) {
-    return raw.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-  return [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:8787',
-    'http://127.0.0.1:8787',
-  ];
-}
+const DEFAULT_CORS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:10300',
+  'http://127.0.0.1:10300',
+];
 
-export function createApp(options: { workspace: string }) {
-  const host = new AgentHost({ defaultCwd: options.workspace });
-  const jobs = new ShellJobRunner({ cwd: options.workspace });
+export function createApp(options: { settings: SettingsService }) {
+  const settings = options.settings;
+  const host = new AgentHost({ settings });
+  const jobs = new ShellJobRunner({
+    getCwd: () => settings.requireProjectCwd(),
+  });
   const app = new Hono();
 
   app.use(
     '*',
     cors({
-      origin: resolveCorsOrigins(),
+      origin: DEFAULT_CORS,
       allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type'],
     }),
   );
 
+  const requireCwd = (): string => settings.requireProjectCwd();
+
   app.get(HttpPaths.health, (c) => c.json({ ok: true }));
 
   app.get(HttpPaths.workspace, (c) => c.json(host.getWorkspace()));
 
+  app.get(HttpPaths.project, (c) => c.json(settings.getProjectInfo()));
+
+  app.put(HttpPaths.project, async (c) => {
+    try {
+      const body = (await c.req.json()) as SetProjectRequest;
+      return c.json(settings.setProjectCwd(body.path ?? ''));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.get(HttpPaths.projectBrowse, async (c) => {
+    try {
+      const path = c.req.query('path') || undefined;
+      return c.json(await browseDirectories(path));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.get(HttpPaths.settings, (c) => c.json(settings.getAppSettings()));
+
+  app.put(HttpPaths.settingsModel, async (c) => {
+    try {
+      const body = (await c.req.json()) as SaveModelSettingsRequest;
+      return c.json(settings.saveModelSettings(body));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.delete(HttpPaths.settingsModel, (c) => {
+    return c.json(settings.clearModelSettings(true));
+  });
+
   app.get(HttpPaths.sessions, (c) => c.json({ sessions: host.listSessions() }));
 
   app.post(HttpPaths.sessions, async (c) => {
-    const body = (await c.req.json().catch(() => ({}))) as CreateSessionRequest;
-    const session = host.createSession({
-      cwd: body.cwd,
-      title: body.title,
-    });
-    return c.json(session, 201);
+    try {
+      const body = (await c.req.json().catch(() => ({}))) as CreateSessionRequest;
+      const session = host.createSession({
+        cwd: body.cwd,
+        title: body.title,
+      });
+      return c.json(session, 201);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
   });
 
   app.get(HttpPaths.session(':id'), (c) => {
@@ -98,7 +140,10 @@ export function createApp(options: { workspace: string }) {
     if (!detail) return c.json({ error: '会话不存在' }, 404);
     if (detail.streaming) return c.json({ error: '当前会话正在生成' }, 409);
     if (!host.hasApiKey()) {
-      return c.json({ error: '未配置 ANTHROPIC_API_KEY' }, 400);
+      return c.json({ error: '未配置 API Key，请在设置中填写' }, 400);
+    }
+    if (!settings.getProjectCwd()) {
+      return c.json({ error: '请先选择项目目录' }, 400);
     }
     const text = body.text?.trim() ?? '';
     if (!text) return c.json({ error: '消息不能为空' }, 400);
@@ -122,18 +167,22 @@ export function createApp(options: { workspace: string }) {
   });
 
   app.get(HttpPaths.filesTree, async (c) => {
-    const cwd = host.getWorkspace().cwd;
-    const depthRaw = c.req.query('depth');
-    const depth = depthRaw ? Math.min(8, Math.max(1, Number(depthRaw) || 3)) : 3;
-    const tree = await readFileTree(cwd, '', 0, depth);
-    return c.json({ cwd, tree });
+    try {
+      const cwd = requireCwd();
+      const depthRaw = c.req.query('depth');
+      const depth = depthRaw ? Math.min(8, Math.max(1, Number(depthRaw) || 3)) : 3;
+      const tree = await readFileTree(cwd, '', 0, depth);
+      return c.json({ cwd, tree });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
   });
 
   app.get(HttpPaths.fileContent, async (c) => {
     const rel = c.req.query('path');
     if (!rel) return c.json({ error: '缺少 path' }, 400);
     try {
-      const file = await readWorkspaceFile(host.getWorkspace().cwd, rel);
+      const file = await readWorkspaceFile(requireCwd(), rel);
       return c.json(file);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -146,11 +195,7 @@ export function createApp(options: { workspace: string }) {
     if (!body.path?.trim()) return c.json({ error: '缺少 path' }, 400);
     if (typeof body.content !== 'string') return c.json({ error: '缺少 content' }, 400);
     try {
-      const file = await writeWorkspaceFile(
-        host.getWorkspace().cwd,
-        body.path,
-        body.content,
-      );
+      const file = await writeWorkspaceFile(requireCwd(), body.path, body.content);
       return c.json(file);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -158,7 +203,7 @@ export function createApp(options: { workspace: string }) {
     }
   });
 
-  const cwd = () => host.getWorkspace().cwd;
+  const cwd = () => requireCwd();
 
   app.get(HttpPaths.gitStatus, async (c) => {
     try {
@@ -264,7 +309,11 @@ export function createApp(options: { workspace: string }) {
   });
 
   app.get(HttpPaths.jobTasks, async (c) => {
-    return c.json({ tasks: await jobs.listTasks() });
+    try {
+      return c.json({ tasks: await jobs.listTasks() });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
   });
 
   app.get(HttpPaths.jobs, (c) => c.json({ jobs: jobs.listJobs() }));
@@ -297,5 +346,5 @@ export function createApp(options: { workspace: string }) {
     return jobEventStream(c, id, (listener) => jobs.onEvent(listener));
   });
 
-  return { app, host, jobs };
+  return { app, host, jobs, settings };
 }

@@ -26,8 +26,13 @@ export interface PromptRequest {
 }
 
 export interface WorkspaceDto {
-  cwd: string;
+  /** 当前项目目录；未选择时为 null */
+  cwd: string | null;
   hasApiKey: boolean;
+  hasProject: boolean;
+  defaultModel?: string;
+  claudeHome?: string;
+  settingsDbPath?: string;
 }
 
 export interface FileTreeNodeDto {

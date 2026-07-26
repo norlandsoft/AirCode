@@ -24,3 +24,6 @@ export {
   buildClaudeProcessEnv,
   resolveSettingSources,
 } from './claude-runtime.js';
+export { SettingsDb, defaultDbPath, defaultDataDir, resolveClaudeHome } from './settings-db.js';
+export { SettingsService, expandUserPath } from './settings-service.js';
+export { browseDirectories } from './project-fs.js';

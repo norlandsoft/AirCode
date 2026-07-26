@@ -40,12 +40,12 @@ const DEFAULT_TASKS: ShellTaskDefDto[] = [
 export class ShellJobRunner {
   private readonly jobs = new Map<string, JobRecord>();
   private readonly listeners = new Set<JobListener>();
-  private readonly cwd: string;
+  private readonly getCwd: () => string;
   private activeJobId: string | null = null;
   private readonly queue: string[] = [];
 
-  constructor(options: { cwd: string }) {
-    this.cwd = options.cwd;
+  constructor(options: { getCwd: () => string }) {
+    this.getCwd = options.getCwd;
   }
 
   onEvent(listener: JobListener): () => void {
@@ -64,7 +64,7 @@ export class ShellJobRunner {
   }
 
   async listTasks(): Promise<ShellTaskDefDto[]> {
-    const customPath = path.join(this.cwd, '.aircode', 'tasks.json');
+    const customPath = path.join(this.getCwd(), '.aircode', 'tasks.json');
     try {
       const raw = await fs.readFile(customPath, 'utf8');
       const parsed = JSON.parse(raw) as { tasks?: ShellTaskDefDto[] };
@@ -166,7 +166,7 @@ export class ShellJobRunner {
       this.emit(job.id, { type: 'job_started', jobId: job.id });
 
       const child = spawn(job.command, {
-        cwd: this.cwd,
+        cwd: this.getCwd(),
         shell: true,
         env: { ...process.env },
       });

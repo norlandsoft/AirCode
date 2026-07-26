@@ -3,17 +3,19 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { config as loadEnv } from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SettingsService, resolveClaudeHome } from '@aircode/runtime';
 import { createApp } from './app.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: resolve(__dirname, '../../../.env') });
 loadEnv();
 
-const port = Number(process.env.PORT || 8787);
-const hostname = process.env.HOST?.trim() || '0.0.0.0';
-const workspace = process.env.AIRCODE_WORKSPACE?.trim() || process.cwd();
+/** .env 仅保留服务端口与 Claude Home */
+const port = Number(process.env.PORT || 10300);
+const claudeHome = resolveClaudeHome();
+const settings = new SettingsService({ claudeHome });
 
-const { app, host } = createApp({ workspace });
+const { app, host } = createApp({ settings });
 
 if (process.env.NODE_ENV === 'production') {
   const webDist = resolve(__dirname, '../../web/dist');
@@ -21,16 +23,19 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', serveStatic({ root: webDist, path: 'index.html' }));
 }
 
-const server = serve({ fetch: app.fetch, port, hostname }, () => {
-  console.log(`[aircode] server http://${hostname}:${port}`);
-  console.log(`[aircode] workspace ${workspace}`);
+const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
+  console.log(`[aircode] server http://0.0.0.0:${port}`);
+  console.log(`[aircode] CLAUDE_HOME ${claudeHome}`);
+  console.log(`[aircode] settings db ${settings.dbPath}`);
   console.log(
-    `[aircode] ANTHROPIC_API_KEY ${host.hasApiKey() ? '已配置' : '未配置（请写入 .env）'}`,
+    `[aircode] project ${settings.getProjectCwd() ?? '（未选择，请在 Web 中打开项目）'}`,
   );
+  console.log(`[aircode] API Key ${host.hasApiKey() ? '已配置' : '未配置（设置页）'}`);
 });
 
 async function shutdown() {
   await host.disposeAll();
+  settings.close();
   server.close();
   process.exit(0);
 }

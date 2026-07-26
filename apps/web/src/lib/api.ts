@@ -12,6 +12,10 @@ import {
   type JobEventEnvelope,
   type SessionDetailDto,
   type SessionSummaryDto,
+  type AppSettingsDto,
+  type BrowseResultDto,
+  type ProjectInfoDto,
+  type SaveModelSettingsRequest,
   type ShellJobDetailDto,
   type ShellJobSummaryDto,
   type ShellTaskDefDto,
@@ -237,5 +241,44 @@ export const api = {
     };
     es.addEventListener(SseEventName.job, handler as EventListener);
     return () => es.close();
+  },
+
+  async getSettings(): Promise<AppSettingsDto> {
+    const res = await fetch(HttpPaths.settings);
+    return parseJson(res);
+  },
+
+  async saveModelSettings(body: SaveModelSettingsRequest): Promise<AppSettingsDto> {
+    const res = await fetch(HttpPaths.settingsModel, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return parseJson(res);
+  },
+
+  async clearModelSettings(): Promise<AppSettingsDto> {
+    const res = await fetch(HttpPaths.settingsModel, { method: 'DELETE' });
+    return parseJson(res);
+  },
+
+  async getProject(): Promise<ProjectInfoDto> {
+    const res = await fetch(HttpPaths.project);
+    return parseJson(res);
+  },
+
+  async setProject(path: string): Promise<ProjectInfoDto> {
+    const res = await fetch(HttpPaths.project, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    return parseJson(res);
+  },
+
+  async browseProject(path?: string): Promise<BrowseResultDto> {
+    const q = path ? `?path=${encodeURIComponent(path)}` : '';
+    const res = await fetch(`${HttpPaths.projectBrowse}${q}`);
+    return parseJson(res);
   },
 };

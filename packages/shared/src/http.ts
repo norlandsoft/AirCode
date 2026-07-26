@@ -25,6 +25,10 @@ export const HttpPaths = {
   job: (id: string) => `/api/jobs/${id}` as const,
   jobAbort: (id: string) => `/api/jobs/${id}/abort` as const,
   jobEvents: (id: string) => `/api/jobs/${id}/events` as const,
+  settings: '/api/settings',
+  settingsModel: '/api/settings/model',
+  project: '/api/project',
+  projectBrowse: '/api/project/browse',
 } as const;
 
 /** SSE 事件名 */

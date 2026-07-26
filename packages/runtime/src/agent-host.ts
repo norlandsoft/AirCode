@@ -18,6 +18,7 @@ import {
   SNAPSHOT_PREFIX,
   type SdkMessageLike,
 } from './sdk-mapper.js';
+import type { SettingsService } from './settings-service.js';
 
 type EventListener = (sessionId: string, event: AgentEventDto) => void;
 
@@ -39,15 +40,19 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 
 /**
  * Claude Agent SDK 会话宿主。
- * 无登录：依赖进程环境 ANTHROPIC_API_KEY。
+ * 无登录：API Key / 项目目录均来自 SQLite；工作目录为所选项目。
  */
 export class AgentHost {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly listeners = new Set<EventListener>();
-  private readonly defaultCwd: string;
+  private readonly settings: SettingsService;
 
-  constructor(options?: { defaultCwd?: string }) {
-    this.defaultCwd = options?.defaultCwd?.trim() || process.cwd();
+  constructor(options: { settings: SettingsService }) {
+    this.settings = options.settings;
+  }
+
+  private projectCwd(): string | null {
+    return this.settings.getProjectCwd();
   }
 
   onEvent(listener: EventListener): () => void {
@@ -66,11 +71,26 @@ export class AgentHost {
   }
 
   hasApiKey(): boolean {
-    return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+    return this.settings.hasApiKey();
   }
 
-  getWorkspace(): { cwd: string; hasApiKey: boolean } {
-    return { cwd: this.defaultCwd, hasApiKey: this.hasApiKey() };
+  getWorkspace(): {
+    cwd: string | null;
+    hasApiKey: boolean;
+    hasProject: boolean;
+    defaultModel?: string;
+    claudeHome?: string;
+    settingsDbPath?: string;
+  } {
+    const cwd = this.projectCwd();
+    return {
+      cwd,
+      hasApiKey: this.hasApiKey(),
+      hasProject: Boolean(cwd),
+      defaultModel: this.settings.getDefaultModel(),
+      claudeHome: this.settings.claudeHome,
+      settingsDbPath: this.settings.dbPath,
+    };
   }
 
   listSessions(): SessionSummaryDto[] {
@@ -92,7 +112,7 @@ export class AgentHost {
   createSession(input?: { cwd?: string; title?: string }): SessionSummaryDto {
     const id = randomUUID();
     const now = Date.now();
-    const cwd = input?.cwd?.trim() || this.defaultCwd;
+    const cwd = input?.cwd?.trim() || this.settings.requireProjectCwd();
     const record: SessionRecord = {
       id,
       title: input?.title?.trim() || '新会话',
@@ -130,7 +150,10 @@ export class AgentHost {
     if (!s) throw new Error('会话不存在');
     if (s.streaming) throw new Error('当前会话正在生成，请先中止或等待完成');
     if (!this.hasApiKey()) {
-      throw new Error('未配置 ANTHROPIC_API_KEY，请在环境变量或 .env 中设置');
+      throw new Error('未配置 API Key，请在设置中填写');
+    }
+    if (!this.projectCwd()) {
+      throw new Error('请先选择项目目录');
     }
 
     const trimmed = text.trim();
@@ -209,7 +232,9 @@ export class AgentHost {
     let timedOut = false;
 
     const claudeExecutable = resolveClaudeCodeExecutable();
-    const queryEnv = buildClaudeProcessEnv();
+    const authEnv = this.settings.buildAuthEnv();
+    const queryEnv = buildClaudeProcessEnv(authEnv);
+    const defaultModel = this.settings.getDefaultModel();
     const queryOptions: Record<string, unknown> = {
       cwd: s.cwd,
       resume: s.claudeSessionId,
@@ -228,6 +253,10 @@ export class AgentHost {
         console.error(`[agent-sdk] ${line}`);
       },
     };
+    if (defaultModel) {
+      queryOptions.model = defaultModel;
+      s.model = defaultModel;
+    }
 
     if (claudeExecutable) {
       queryOptions.pathToClaudeCodeExecutable = claudeExecutable;
