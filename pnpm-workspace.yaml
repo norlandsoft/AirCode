@@ -1,3 +1,7 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+
+# pnpm 10+/11：显式允许依赖安装脚本（Vite 需要 esbuild 原生二进制）
+allowBuilds:
+  esbuild: true
