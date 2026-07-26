@@ -42,8 +42,8 @@ function requireParam(c: Context, name: string): string {
 }
 
 const DEFAULT_CORS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  'http://localhost:10330',
+  'http://127.0.0.1:10330',
   'http://localhost:10300',
   'http://127.0.0.1:10300',
 ];

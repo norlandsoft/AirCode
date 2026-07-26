@@ -26,7 +26,7 @@ export default defineConfig({
     exclude: ['@air/design'],
   },
   server: {
-    port: 5173,
+    port: 10330,
     fs: {
       allow: [repoRoot, airOneRoot],
     },
