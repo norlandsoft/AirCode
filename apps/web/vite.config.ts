@@ -9,6 +9,8 @@ const airOneRoot = resolve(repoRoot, '../AirOne');
 const designRoot = resolve(airOneRoot, 'packages/design');
 
 export default defineConfig({
+  // 从仓库根执行 `vite --config apps/web/vite.config.ts` 时必须显式指定 root
+  root: __dirname,
   plugins: [react()],
   resolve: {
     alias: [
@@ -26,7 +28,9 @@ export default defineConfig({
     exclude: ['@air/design'],
   },
   server: {
+    host: '0.0.0.0',
     port: 10330,
+    strictPort: true,
     fs: {
       allow: [repoRoot, airOneRoot],
     },
@@ -39,6 +43,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    emptyOutDir: true,
     commonjsOptions: {
       include: [/node_modules/, /AirOne/],
     },
