@@ -44,6 +44,23 @@ export interface GitDiffDto {
   diff: string;
 }
 
+/** Monaco DiffEditor 用的双边文本 */
+export interface GitFileContentsDto {
+  path: string;
+  language: string;
+  original: string;
+  modified: string;
+  /** working tree 未暂存 / 已暂存 / 某次提交 */
+  mode: 'unstaged' | 'staged' | 'commit';
+  commit?: string;
+}
+
+export interface GitCommitFileDto {
+  path: string;
+  /** A/M/D/R… */
+  status: string;
+}
+
 export interface GitCommitRequest {
   message: string;
 }

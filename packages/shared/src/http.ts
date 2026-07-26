@@ -13,6 +13,8 @@ export const HttpPaths = {
   gitBranches: '/api/git/branches',
   gitLog: '/api/git/log',
   gitDiff: '/api/git/diff',
+  gitContents: '/api/git/contents',
+  gitCommitFiles: '/api/git/commit-files',
   gitStage: '/api/git/stage',
   gitUnstage: '/api/git/unstage',
   gitCommit: '/api/git/commit',

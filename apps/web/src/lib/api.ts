@@ -6,7 +6,9 @@ import {
   type FileContentDto,
   type FileTreeNodeDto,
   type GitBranchDto,
+  type GitCommitFileDto,
   type GitDiffDto,
+  type GitFileContentsDto,
   type GitLogEntryDto,
   type GitStatusDto,
   type JobEventEnvelope,
@@ -23,9 +25,19 @@ import {
 } from '@aircode/shared';
 
 async function parseJson<T>(res: Response): Promise<T> {
-  const data = (await res.json()) as T & { error?: string };
+  const text = await res.text();
+  let data: T & { error?: string };
+  try {
+    data = (text ? JSON.parse(text) : {}) as T & { error?: string };
+  } catch {
+    throw new Error(
+      res.ok
+        ? `响应不是合法 JSON：${text.slice(0, 120)}`
+        : text.trim() || res.statusText || `HTTP ${res.status}`,
+    );
+  }
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || res.statusText);
+    throw new Error(data.error || text.trim() || res.statusText || `HTTP ${res.status}`);
   }
   return data;
 }
@@ -142,6 +154,26 @@ export const api = {
     if (staged) q.set('staged', '1');
     const res = await fetch(`${HttpPaths.gitDiff}?${q}`);
     return parseJson(res);
+  },
+
+  async gitContents(options: {
+    path: string;
+    staged?: boolean;
+    commit?: string;
+  }): Promise<GitFileContentsDto> {
+    const q = new URLSearchParams();
+    q.set('path', options.path);
+    if (options.staged) q.set('staged', '1');
+    if (options.commit) q.set('commit', options.commit);
+    const res = await fetch(`${HttpPaths.gitContents}?${q}`);
+    return parseJson(res);
+  },
+
+  async gitCommitFiles(commit: string): Promise<GitCommitFileDto[]> {
+    const q = new URLSearchParams({ commit });
+    const res = await fetch(`${HttpPaths.gitCommitFiles}?${q}`);
+    const data = await parseJson<{ files: GitCommitFileDto[] }>(res);
+    return data.files;
   },
 
   async gitStage(paths: string[]): Promise<GitStatusDto> {

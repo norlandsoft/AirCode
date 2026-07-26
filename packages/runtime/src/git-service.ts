@@ -1,8 +1,12 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import type {
   GitBranchDto,
+  GitCommitFileDto,
   GitDiffDto,
+  GitFileContentsDto,
   GitFileStatusDto,
   GitLogEntryDto,
   GitStatusDto,
@@ -198,6 +202,123 @@ export async function gitDiff(
     staged: Boolean(options?.staged),
     diff: res.stdout || res.stderr,
   };
+}
+
+const LANG_BY_EXT: Record<string, string> = {
+  ts: 'typescript',
+  tsx: 'typescript',
+  js: 'javascript',
+  jsx: 'javascript',
+  json: 'json',
+  md: 'markdown',
+  css: 'css',
+  html: 'html',
+  py: 'python',
+  go: 'go',
+  rs: 'rust',
+  yml: 'yaml',
+  yaml: 'yaml',
+  sh: 'shell',
+  toml: 'toml',
+};
+
+function guessLanguage(filePath: string): string {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  return LANG_BY_EXT[ext] || 'plaintext';
+}
+
+const MAX_DIFF_BYTES = 1.5 * 1024 * 1024;
+
+async function gitBlob(gitRoot: string, rev: string): Promise<string | null> {
+  const res = await git(gitRoot, ['show', rev], { allowFail: true });
+  if (res.code !== 0) return null;
+  if (Buffer.byteLength(res.stdout, 'utf8') > MAX_DIFF_BYTES) {
+    return `// 文件过大，请在「代码」或对话中查看\n`;
+  }
+  return res.stdout;
+}
+
+function readWorktreeFile(gitRoot: string, relPath: string): string {
+  const abs = path.resolve(gitRoot, relPath);
+  const rootAbs = path.resolve(gitRoot);
+  if (!abs.startsWith(rootAbs + path.sep) && abs !== rootAbs) {
+    throw new Error('非法路径');
+  }
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return '';
+  const buf = fs.readFileSync(abs);
+  if (buf.length > MAX_DIFF_BYTES) {
+    return `// 文件过大，请在「代码」或对话中查看\n`;
+  }
+  return buf.toString('utf8');
+}
+
+/**
+ * 返回 Monaco DiffEditor 所需的 original / modified 文本。
+ * - unstaged: 索引(或 HEAD) vs 工作区
+ * - staged: HEAD vs 索引
+ * - commit: commit^ vs commit
+ */
+export async function gitFileContents(
+  cwd: string,
+  options: { path: string; staged?: boolean; commit?: string },
+): Promise<GitFileContentsDto> {
+  const gitRoot = await requireRepoRoot(cwd);
+  const filePath = options.path.trim();
+  if (!filePath) throw new Error('请指定文件路径');
+  const language = guessLanguage(filePath);
+
+  if (options.commit?.trim()) {
+    const commit = options.commit.trim();
+    const original = (await gitBlob(gitRoot, `${commit}^:${filePath}`)) ?? '';
+    const modified = (await gitBlob(gitRoot, `${commit}:${filePath}`)) ?? '';
+    return {
+      path: filePath,
+      language,
+      original,
+      modified,
+      mode: 'commit',
+      commit,
+    };
+  }
+
+  if (options.staged) {
+    const original = (await gitBlob(gitRoot, `HEAD:${filePath}`)) ?? '';
+    const modified = (await gitBlob(gitRoot, `:${filePath}`)) ?? '';
+    return { path: filePath, language, original, modified, mode: 'staged' };
+  }
+
+  const fromIndex = await gitBlob(gitRoot, `:${filePath}`);
+  const fromHead = fromIndex === null ? await gitBlob(gitRoot, `HEAD:${filePath}`) : null;
+  const original = fromIndex ?? fromHead ?? '';
+  const modified = readWorktreeFile(gitRoot, filePath);
+  return { path: filePath, language, original, modified, mode: 'unstaged' };
+}
+
+export async function gitCommitFiles(
+  cwd: string,
+  commit: string,
+): Promise<GitCommitFileDto[]> {
+  const gitRoot = await requireRepoRoot(cwd);
+  const hash = commit.trim();
+  if (!hash) throw new Error('请指定提交');
+  const res = await git(gitRoot, ['show', '--name-status', '--format=', '--find-renames', hash], {
+    allowFail: true,
+  });
+  if (res.code !== 0) return [];
+  const files: GitCommitFileDto[] = [];
+  for (const line of res.stdout.split('\n').map((l) => l.trimEnd()).filter(Boolean)) {
+    const tab = line.indexOf('\t');
+    if (tab < 0) continue;
+    const status = line.slice(0, tab).trim();
+    let filePath = line.slice(tab + 1);
+    if (filePath.includes('\t')) {
+      // rename: R100\told\tnew
+      const parts = filePath.split('\t');
+      filePath = parts[parts.length - 1] ?? filePath;
+    }
+    files.push({ path: filePath, status: status[0] ?? status });
+  }
+  return files;
 }
 
 export async function gitStage(cwd: string, paths: string[]): Promise<void> {

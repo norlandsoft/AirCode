@@ -8,8 +8,10 @@ import {
   gitBranches,
   gitCheckout,
   gitCommit,
+  gitCommitFiles,
   gitDiff,
   gitFetch,
+  gitFileContents,
   gitInit,
   gitLog,
   gitPull,
@@ -238,6 +240,26 @@ export function createApp(options: { settings: SettingsService }) {
       const path = c.req.query('path') || undefined;
       const staged = c.req.query('staged') === '1' || c.req.query('staged') === 'true';
       return c.json(await gitDiff(cwd(), { path, staged }));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.get(HttpPaths.gitContents, async (c) => {
+    try {
+      const path = c.req.query('path') || '';
+      const staged = c.req.query('staged') === '1' || c.req.query('staged') === 'true';
+      const commit = c.req.query('commit') || undefined;
+      return c.json(await gitFileContents(cwd(), { path, staged, commit }));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
+    }
+  });
+
+  app.get(HttpPaths.gitCommitFiles, async (c) => {
+    try {
+      const commit = c.req.query('commit') || '';
+      return c.json({ files: await gitCommitFiles(cwd(), commit) });
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : String(err) }, 400);
     }

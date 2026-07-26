@@ -10,6 +10,8 @@ export {
   gitBranches,
   gitLog,
   gitDiff,
+  gitFileContents,
+  gitCommitFiles,
   gitStage,
   gitUnstage,
   gitCommit,
