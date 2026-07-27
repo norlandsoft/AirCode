@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, message } from '@air/design';
+import { Button, Icon, message } from '@air/design';
 import type { BrowseResultDto, ProjectInfoDto } from '@aircode/shared';
 import { api } from '../lib/api';
 
@@ -46,7 +46,9 @@ export function ProjectPicker({ onSelected }: Props) {
   async function goBrowse(path?: string | null) {
     if (path === null) return;
     try {
-      setBrowse(await api.browseProject(path));
+      const next = await api.browseProject(path);
+      setBrowse(next);
+      if (next.path) setPathInput(next.path);
     } catch (err) {
       message.error(err instanceof Error ? err.message : String(err));
     }
@@ -56,7 +58,7 @@ export function ProjectPicker({ onSelected }: Props) {
     <div className="ac-project-picker">
       <div className="ac-project-hero">
         <h1>选择项目</h1>
-        <p>智能体工作目录 = 项目目录。模型（Base URL / Token / Model）在「设置」中配置。</p>
+        <p>选择本地目录作为 Agent 工作区。模型与 Token 请在设置中配置。</p>
       </div>
 
       {info?.recent?.length ? (
@@ -66,7 +68,8 @@ export function ProjectPicker({ onSelected }: Props) {
             {info.recent.map((p) => (
               <li key={p}>
                 <button type="button" disabled={busy} onClick={() => void openPath(p)}>
-                  {p}
+                  <Icon name="folder" size={14} color="currentColor" />
+                  <span>{p}</span>
                 </button>
               </li>
             ))}
@@ -95,7 +98,9 @@ export function ProjectPicker({ onSelected }: Props) {
 
       <div className="ac-project-browse">
         <div className="ac-panel-head">
-          <span>{browse?.path ?? '…'}</span>
+          <span className="ac-project-browse-path" title={browse?.path ?? ''}>
+            {browse?.path ?? '…'}
+          </span>
           <div className="ac-panel-actions">
             <Button
               size="sm"
@@ -104,21 +109,14 @@ export function ProjectPicker({ onSelected }: Props) {
             >
               上级
             </Button>
-            <Button
-              size="sm"
-              type="primary"
-              disabled={busy || !browse?.path}
-              onClick={() => browse?.path && void openPath(browse.path)}
-            >
-              选择当前目录
-            </Button>
           </div>
         </div>
         <ul className="ac-project-dir-list">
           {(browse?.entries ?? []).map((e) => (
             <li key={e.path}>
               <button type="button" onClick={() => void goBrowse(e.path)}>
-                {e.name}/
+                <Icon name="folder" size={14} color="currentColor" />
+                <span>{e.name}</span>
               </button>
             </li>
           ))}
@@ -128,7 +126,7 @@ export function ProjectPicker({ onSelected }: Props) {
         </ul>
       </div>
 
-      <p className="ac-muted-block">
+      <p className="ac-muted-block ac-project-meta">
         Claude Home：{info?.claudeHome ?? '…'} · 设置库：{info?.dbPath ?? '…'}
       </p>
     </div>

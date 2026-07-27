@@ -9,7 +9,6 @@ interface Props {
   onNew: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
-  onOpenSettings?: () => void;
 }
 
 /** 相对时间：1m / 2h / 3d */
@@ -37,7 +36,6 @@ export function SessionSidebar({
   onNew,
   onSelect,
   onDelete,
-  onOpenSettings,
 }: Props) {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -54,7 +52,7 @@ export function SessionSidebar({
     <aside className="ac-sidebar">
       <nav className="ac-sidebar-nav" aria-label="会话操作">
         <button type="button" className="ac-sidebar-nav-item" onClick={onNew}>
-          <Icon name="agent" size={16} color="#5c5c5c" />
+          <Icon name="add" size={16} color="currentColor" />
           <span>新建会话</span>
         </button>
         <button
@@ -62,14 +60,14 @@ export function SessionSidebar({
           className={`ac-sidebar-nav-item ${searchOpen ? 'active' : ''}`}
           onClick={() => setSearchOpen((v) => !v)}
         >
-          <Icon name="search" size={16} color="#5c5c5c" />
+          <Icon name="search" size={16} color="currentColor" />
           <span>搜索</span>
         </button>
       </nav>
 
       {searchOpen ? (
         <div className="ac-sidebar-search">
-          <Icon name="search" size={14} color="#8a8a8a" />
+          <Icon name="search" size={14} color="currentColor" />
           <input
             className="ac-sidebar-search-input"
             value={query}
@@ -84,7 +82,7 @@ export function SessionSidebar({
               aria-label="清除"
               onClick={() => setQuery('')}
             >
-              <Icon name="close" size={12} color="#8a8a8a" />
+              <Icon name="close" size={12} color="currentColor" />
             </button>
           ) : null}
         </div>
@@ -93,22 +91,13 @@ export function SessionSidebar({
       <div className="ac-sidebar-section">
         <div className="ac-sidebar-section-head">
           <span className="ac-sidebar-section-title">会话</span>
-          <button
-            type="button"
-            className="ac-sidebar-section-btn"
-            title="新建会话"
-            aria-label="新建会话"
-            onClick={onNew}
-          >
-            <Icon name="add" size={14} color="#8a8a8a" />
-          </button>
         </div>
 
         <ul className="ac-session-list">
           {filtered.map((s) => (
             <li key={s.id} className={s.id === activeId ? 'active' : ''}>
               <button type="button" className="ac-session-item" onClick={() => onSelect(s.id)}>
-                <Icon name="chat" size={15} color="#5c5c5c" className="ac-session-icon" />
+                <Icon name="chat" size={15} color="currentColor" className="ac-session-icon" />
                 <span className="ac-session-title">{s.title}</span>
                 {s.streaming ? <span className="ac-dot" /> : null}
                 <span className="ac-session-time">{formatRelativeTime(s.updatedAt)}</span>
@@ -123,7 +112,7 @@ export function SessionSidebar({
                   onDelete(s.id);
                 }}
               >
-                <Icon name="close" size={12} color="#8a8a8a" />
+                <Icon name="close" size={12} color="currentColor" />
               </button>
             </li>
           ))}
@@ -143,17 +132,6 @@ export function SessionSidebar({
           </div>
           <div className="ac-sidebar-user-plan">本地项目</div>
         </div>
-        {onOpenSettings ? (
-          <button
-            type="button"
-            className="ac-sidebar-footer-btn"
-            title="设置"
-            aria-label="设置"
-            onClick={onOpenSettings}
-          >
-            <Icon name="settings" size={16} color="#8a8a8a" />
-          </button>
-        ) : null}
       </div>
     </aside>
   );

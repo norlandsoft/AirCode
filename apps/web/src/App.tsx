@@ -326,7 +326,6 @@ export function App() {
               onNew={() => void handleNewSession()}
               onSelect={(id) => setActiveId(id)}
               onDelete={(id) => void handleDeleteSession(id)}
-              onOpenSettings={() => setWorkTab('settings')}
             />
           </Splitter.Panel>
           <Splitter.Panel min={320}>
@@ -476,12 +475,26 @@ export function App() {
 
   return (
     <div className={`ac-root ${isPhone ? 'ac-phone' : 'ac-desktop'}`} data-theme="light">
-      {/* 顶栏 40px：桌面含项目 / 设置；手机仅品牌与状态 */}
       <header className="ac-topbar">
         <div className="ac-brand">
-          <Icon name="workspace" size={16} />
+          <Icon name="workspace" size={18} color="currentColor" />
           <span className="ac-brand-text">AirCode</span>
         </div>
+
+        <nav className="ac-work-tabs" aria-label="工作区">
+          {workTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={activeTab === t.id ? 'active' : ''}
+              onClick={() => setWorkTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="ac-topbar-spacer" />
 
         {!isPhone ? (
           <>
@@ -491,7 +504,7 @@ export function App() {
               title={cwdLabel}
               onClick={() => setWorkTab('project')}
             >
-              <Icon name="project" size={14} />
+              <Icon name="folder" size={14} color="currentColor" />
               <span>{cwdLabel}</span>
             </button>
             <div className="ac-topbar-actions">
@@ -507,35 +520,18 @@ export function App() {
                 title="设置"
                 onClick={() => setWorkTab(workTab === 'settings' ? 'chat' : 'settings')}
               >
-                <Icon name="settings" size={16} />
+                <Icon name="settings" size={16} color="currentColor" />
               </button>
             </div>
           </>
         ) : (
           <div className="ac-topbar-actions">
-            <span className="ac-topbar-path" title={cwdLabel}>
-              {cwdLabel}
-            </span>
             <span className={`ac-key-badge ${workspace?.hasApiKey ? 'ok' : 'warn'}`}>
               {workspace?.hasApiKey ? 'Token' : '无 Token'}
             </span>
           </div>
         )}
       </header>
-
-      {/* 工作区 Tab */}
-      <nav className="ac-work-tabs" aria-label="工作区">
-        {workTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={activeTab === t.id ? 'active' : ''}
-            onClick={() => setWorkTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
 
       <main className="ac-work">{renderWork()}</main>
     </div>
