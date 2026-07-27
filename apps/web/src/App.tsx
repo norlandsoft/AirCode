@@ -62,7 +62,7 @@ export function App() {
   }, []);
 
   const refreshTree = useCallback(async () => {
-    setTree((await api.fileTree(4)).tree);
+    setTree((await api.fileTree(8)).tree);
   }, []);
 
   const bootstrap = useCallback(async () => {
@@ -75,7 +75,7 @@ export function App() {
         setTree([]);
         return;
       }
-      const [list, files] = await Promise.all([api.listSessions(), api.fileTree(4)]);
+      const [list, files] = await Promise.all([api.listSessions(), api.fileTree(8)]);
       setSessions(list);
       setTree(files.tree);
       if (!ws.hasApiKey) {
@@ -235,6 +235,8 @@ export function App() {
   }
 
   const cwdLabel = workspace?.cwd ?? '未选择项目';
+  const projectName =
+    workspace?.cwd?.split(/[/\\]/).filter(Boolean).pop() || cwdLabel;
   const needsProject = !workspace?.hasProject;
   const activeTab: WorkTab = needsProject && workTab !== 'settings' ? 'project' : workTab;
 
@@ -383,7 +385,9 @@ export function App() {
         <>
           {!openFile ? (
             <FileTree
+              key={workspace?.cwd ?? 'tree'}
               tree={tree}
+              rootLabel={projectName}
               onOpen={(p) => void handleOpenFile(p)}
               onRefresh={() => void refreshTree()}
             />
@@ -404,7 +408,9 @@ export function App() {
         <Splitter layout="horizontal" style={{ height: '100%', width: '100%' }}>
           <Splitter.Panel defaultSize={260} min={180} max={420}>
             <FileTree
+              key={workspace?.cwd ?? 'tree'}
               tree={tree}
+              rootLabel={projectName}
               onOpen={(p) => void handleOpenFile(p)}
               activePath={openFile?.path}
               onRefresh={() => void refreshTree()}
@@ -424,6 +430,7 @@ export function App() {
               />
             ) : (
               <div className="ac-editor-empty">
+                <Icon name="code" size={28} color="currentColor" />
                 <p>从左侧打开文件</p>
                 <p className="ac-muted">支持 ⌘S / Ctrl+S 保存</p>
               </div>

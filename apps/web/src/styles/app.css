@@ -674,8 +674,9 @@ body,
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--ac-surface);
-  border-right: 1px solid var(--ac-border);
+  background: #f3f3f1;
+  border-right: none;
+  color: var(--ac-text);
 }
 
 .ac-filetree-head {
@@ -683,43 +684,115 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ac-muted);
+  gap: 8px;
+  padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--ac-border);
   flex-shrink: 0;
+}
+
+.ac-filetree-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ac-text-secondary);
+}
+
+.ac-filetree-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.ac-filetree-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ac-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.ac-filetree-action:hover {
+  color: var(--ac-text);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .ac-filetree-body {
   flex: 1;
   overflow: auto;
-  padding: 4px 0;
+  padding: 4px 0 12px;
+  min-height: 0;
+}
+
+.ac-filetree-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--ac-muted);
 }
 
 .ac-tree-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   border: 0;
   background: transparent;
   color: var(--ac-text);
-  font-size: 12px;
-  padding: 6px 8px;
-  cursor: default;
-  text-align: left;
-  min-height: 32px;
-}
-
-.ac-tree-row.file {
+  font-size: 13px;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  padding: 2px 8px 2px 0;
   cursor: pointer;
+  text-align: left;
+  min-height: 24px;
+  line-height: 1.3;
 }
 
-.ac-tree-row.file:hover,
+.ac-tree-row:hover {
+  background: rgba(0, 0, 0, 0.045);
+}
+
 .ac-tree-row.file.active {
-  background: var(--ac-accent-soft);
+  background: rgba(0, 0, 0, 0.08);
+  font-weight: 500;
+}
+
+.ac-tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ac-muted);
+}
+
+.ac-tree-chevron-spacer {
+  visibility: hidden;
+}
+
+.ac-tree-icon {
+  flex-shrink: 0;
+  color: var(--ac-text-secondary);
+  opacity: 0.9;
+}
+
+.ac-tree-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ac-editor-pane {
@@ -743,7 +816,7 @@ body,
   border-bottom: 1px solid var(--ac-border);
   color: var(--ac-text-secondary);
   flex-shrink: 0;
-  background: var(--ac-surface-2);
+  background: var(--ac-surface);
 }
 
 .ac-editor-path {
@@ -751,6 +824,10 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--ac-mono);
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--ac-text);
 }
 
 .ac-dirty {
@@ -787,6 +864,12 @@ body,
   gap: 8px;
   padding: 24px;
   background: var(--ac-surface);
+}
+
+.ac-editor-empty p {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: -0.01em;
 }
 
 .ac-muted {
