@@ -26,6 +26,21 @@ import { ProjectPicker } from './components/ProjectPicker';
 /** 工作区主 Tab（手机额外含项目 / 设置） */
 type WorkTab = 'chat' | 'git' | 'code' | 'cicd' | 'project' | 'settings';
 
+/** 合并本地与服务端消息，避免 getSession 空快照覆盖已显示内容 */
+function mergeChatMessages(local: ChatMessage[], remote: ChatMessage[]): ChatMessage[] {
+  const byId = new Map<string, ChatMessage>();
+  for (const m of remote) byId.set(m.id, m);
+  for (const m of local) {
+    if (!byId.has(m.id)) byId.set(m.id, m);
+  }
+  const remoteIds = new Set(remote.map((m) => m.id));
+  const merged = remote.map((m) => byId.get(m.id)!);
+  for (const m of local) {
+    if (!remoteIds.has(m.id)) merged.push(m);
+  }
+  return merged;
+}
+
 function useIsPhone(): boolean {
   const [phone, setPhone] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
@@ -46,6 +61,10 @@ export function App() {
   const [chatList, setChatList] = useState<ChatMessage[]>([]);
   const [lastContent, setLastContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const lastContentRef = useRef('');
+  lastContentRef.current = lastContent;
+  const loadingRef = useRef(false);
+  loadingRef.current = loading;
   const [tree, setTree] = useState<FileTreeNodeDto[]>([]);
   const [openFile, setOpenFile] = useState<{
     path: string;
@@ -109,32 +128,68 @@ export function App() {
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
-    void (async () => {
+
+    const hydrate = async () => {
       try {
         const detail = await api.getSession(activeId);
         if (cancelled) return;
-        setChatList(detail.messages);
-        setLastContent(detail.streamingContent);
-        setLoading(detail.streaming);
+        setChatList((prev) => mergeChatMessages(prev, detail.messages));
+        if (detail.streaming) {
+          setLastContent(detail.streamingContent || lastContentRef.current);
+          setLoading(true);
+        } else if (!loadingRef.current) {
+          // 非流式且本地也未在生成：用服务端快照对齐，清空残留 lastContent
+          setLastContent('');
+          setLoading(false);
+        }
       } catch (err) {
-        message.error(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          message.error(err instanceof Error ? err.message : String(err));
+        }
       }
-    })();
-    const unsub = api.subscribeSession(activeId, (envelope) => applyEvent(envelope));
+    };
+
+    void hydrate();
+    const unsub = api.subscribeSession(
+      activeId,
+      (envelope) => applyEvent(envelope),
+      () => {
+        // SSE 重连后拉齐快照，补回断线窗口内的 assistant_done
+        void hydrate();
+      },
+    );
     return () => {
       cancelled = true;
       unsub();
     };
   }, [activeId]);
 
+  /** 将仍停留在 lastContent 的流式正文写入 chatList，防止 loading=false 后气泡消失 */
+  function commitLastContent() {
+    const content = lastContentRef.current;
+    if (!content.trim()) {
+      setLastContent('');
+      return;
+    }
+    const id = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setChatList((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant' && last.content === content) {
+        return prev;
+      }
+      return [...prev, { id, role: 'assistant', content }];
+    });
+    setLastContent('');
+  }
+
   function applyEvent(envelope: AgentEventEnvelope) {
     const { event } = envelope;
     switch (event.type) {
       case 'user_message':
-        setChatList((prev) => [
-          ...prev,
-          { id: event.messageId, role: 'user', content: event.content },
-        ]);
+        setChatList((prev) => {
+          if (prev.some((m) => m.id === event.messageId)) return prev;
+          return [...prev, { id: event.messageId, role: 'user', content: event.content }];
+        });
         setLastContent('');
         break;
       case 'assistant_delta':
@@ -142,24 +197,37 @@ export function App() {
         setLoading(true);
         break;
       case 'assistant_done':
-        setChatList((prev) => [
-          ...prev,
-          { id: event.messageId, role: 'assistant', content: event.content },
-        ]);
+        setChatList((prev) => {
+          if (prev.some((m) => m.id === event.messageId)) return prev;
+          // 去掉可能已本地 commit 的同内容草稿
+          const withoutDup = prev.filter(
+            (m) => !(m.role === 'assistant' && m.content === event.content && m.id.startsWith('local-')),
+          );
+          return [...withoutDup, { id: event.messageId, role: 'assistant', content: event.content }];
+        });
         setLastContent('');
         setLoading(false);
         void refreshSessions();
         void refreshTree();
         break;
       case 'status':
+        if (!event.streaming) {
+          commitLastContent();
+        }
         setLoading(event.streaming);
         break;
       case 'error':
         message.error(event.message);
-        setLoading(false);
+        // 流式中间错误（如 api_retry）：保留气泡与 loading；致命错误通常已先 assistant_done
+        if (!lastContentRef.current) {
+          setLoading(false);
+        }
         break;
       case 'aborted':
+        commitLastContent();
         setLoading(false);
+        message.info('已停止生成，已保留已输出内容');
+        void refreshSessions();
         break;
       case 'session_init':
         void refreshSessions();

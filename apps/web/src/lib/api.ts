@@ -95,8 +95,10 @@ export const api = {
   subscribeSession(
     id: string,
     onEvent: (envelope: AgentEventEnvelope) => void,
+    onReconnect?: () => void,
   ): () => void {
     const es = new EventSource(HttpPaths.sessionEvents(id));
+    let sawError = false;
     const handler = (ev: MessageEvent) => {
       try {
         const data = JSON.parse(String(ev.data)) as AgentEventEnvelope;
@@ -107,7 +109,13 @@ export const api = {
     };
     es.addEventListener(SseEventName.session, handler as EventListener);
     es.onerror = () => {
-      // EventSource 会自动重连
+      sawError = true;
+    };
+    es.onopen = () => {
+      if (sawError) {
+        sawError = false;
+        onReconnect?.();
+      }
     };
     return () => es.close();
   },

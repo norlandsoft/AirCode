@@ -36,7 +36,7 @@ interface SessionRecord {
   abortController?: AbortController;
 }
 
-const DEFAULT_TIMEOUT_MS = 300_000;
+const DEFAULT_TIMEOUT_MS = 1_800_000; // 30 分钟：长任务墙钟上限（超时前会落盘已生成内容）
 
 /**
  * Claude Agent SDK 会话宿主。
@@ -137,11 +137,9 @@ export class AgentHost {
 
   async abort(sessionId: string): Promise<boolean> {
     const s = this.sessions.get(sessionId);
-    if (!s) return false;
-    s.abortController?.abort();
-    s.streaming = false;
-    this.emit(sessionId, { type: 'aborted', sessionId });
-    this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+    if (!s?.abortController) return false;
+    // 只发 abort 信号；由 runQuery 统一落盘并推送 aborted / assistant_done
+    s.abortController.abort();
     return true;
   }
 
@@ -182,17 +180,29 @@ export class AgentHost {
     let abortController = new AbortController();
     s.abortController = abortController;
 
+    /** 致命错误：先落盘已生成内容，再推 error，避免前端流式气泡被 loading=false 卸掉后丢失 */
     const fail = (err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (s.streamingContent) {
-        s.messages.push({
-          id: randomUUID(),
-          role: 'assistant',
-          content: s.streamingContent,
-        });
-      }
+      const raw = err instanceof Error ? err.message : String(err);
+      const aborted =
+        abortController.signal.aborted ||
+        /abort/i.test(raw) ||
+        (err instanceof Error && err.name === 'AbortError');
+      const msg = aborted
+        ? raw && !/abort/i.test(raw)
+          ? raw
+          : '任务已中止'
+        : raw;
+
+      this.commitStreamingAssistant(s, s.streamingContent);
       s.streaming = false;
-      this.emit(sessionId, { type: 'error', sessionId, message: msg });
+      s.streamingContent = '';
+      s.updatedAt = Date.now();
+
+      if (aborted) {
+        this.emit(sessionId, { type: 'aborted', sessionId });
+      } else {
+        this.emit(sessionId, { type: 'error', sessionId, message: msg });
+      }
       this.emit(sessionId, { type: 'status', sessionId, streaming: false });
     };
 
@@ -217,6 +227,25 @@ export class AgentHost {
     } finally {
       s.abortController = undefined;
     }
+  }
+
+  /** 将 streamingContent 写入 messages 并推送 assistant_done（有内容时） */
+  private commitStreamingAssistant(s: SessionRecord, content: string): string | null {
+    const finalContent = content.trimEnd();
+    if (!finalContent) return null;
+    const assistantId = randomUUID();
+    s.messages.push({
+      id: assistantId,
+      role: 'assistant',
+      content: finalContent,
+    });
+    this.emit(s.id, {
+      type: 'assistant_done',
+      sessionId: s.id,
+      messageId: assistantId,
+      content: finalContent,
+    });
+    return assistantId;
   }
 
   private async runQuery(
@@ -337,8 +366,8 @@ export class AgentHost {
 
           if (piece.kind === 'done') {
             if (piece.sessionId) s.claudeSessionId = piece.sessionId;
-            const assistantId = randomUUID();
             const finalContent = accumulated || piece.result || '';
+            const assistantId = randomUUID();
             const assistantMsg: ChatMessageDto = {
               id: assistantId,
               role: 'assistant',
@@ -349,6 +378,15 @@ export class AgentHost {
             s.streaming = false;
             s.updatedAt = Date.now();
 
+            // 先落盘再报错，保证前端能把正文写入 chatList
+            this.emit(sessionId, {
+              type: 'assistant_done',
+              sessionId,
+              messageId: assistantId,
+              content: finalContent,
+              usage: piece.usage,
+            });
+
             if (piece.failed && piece.errorMessage) {
               this.emit(sessionId, {
                 type: 'error',
@@ -357,53 +395,45 @@ export class AgentHost {
               });
             }
 
-            this.emit(sessionId, {
-              type: 'assistant_done',
-              sessionId,
-              messageId: assistantId,
-              content: finalContent,
-              usage: piece.usage,
-            });
             this.emit(sessionId, { type: 'status', sessionId, streaming: false });
           }
         }
       }
 
+      const wasAborted = abortController.signal.aborted;
+
       if (timedOut) {
-        if (accumulated && s.streaming) {
-          const assistantId = randomUUID();
-          s.messages.push({ id: assistantId, role: 'assistant', content: accumulated });
-          this.emit(sessionId, {
-            type: 'assistant_done',
-            sessionId,
-            messageId: assistantId,
-            content: accumulated,
-          });
+        if (s.streaming) {
+          this.commitStreamingAssistant(s, accumulated || s.streamingContent);
+          s.streaming = false;
+          s.streamingContent = '';
+          s.updatedAt = Date.now();
         }
-        s.streaming = false;
-        s.streamingContent = '';
+        const minutes = Math.round(DEFAULT_TIMEOUT_MS / 60_000);
         this.emit(sessionId, {
           type: 'error',
           sessionId,
-          message: `Agent 运行超时（${DEFAULT_TIMEOUT_MS}ms），已中止`,
+          message: `Agent 运行超时（${minutes} 分钟），已中止。已生成内容已保留，可继续提问。`,
         });
         this.emit(sessionId, { type: 'status', sessionId, streaming: false });
         return;
       }
 
-      if (s.streaming) {
-        if (accumulated) {
-          const assistantId = randomUUID();
-          s.messages.push({ id: assistantId, role: 'assistant', content: accumulated });
-          this.emit(sessionId, {
-            type: 'assistant_done',
-            sessionId,
-            messageId: assistantId,
-            content: accumulated,
-          });
-        }
+      if (wasAborted && s.streaming) {
+        this.commitStreamingAssistant(s, accumulated || s.streamingContent);
         s.streaming = false;
         s.streamingContent = '';
+        s.updatedAt = Date.now();
+        this.emit(sessionId, { type: 'aborted', sessionId });
+        this.emit(sessionId, { type: 'status', sessionId, streaming: false });
+        return;
+      }
+
+      if (s.streaming) {
+        this.commitStreamingAssistant(s, accumulated || s.streamingContent);
+        s.streaming = false;
+        s.streamingContent = '';
+        s.updatedAt = Date.now();
         this.emit(sessionId, { type: 'status', sessionId, streaming: false });
       }
     } finally {
