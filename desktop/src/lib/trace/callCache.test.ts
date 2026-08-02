@@ -51,7 +51,7 @@ describe('fetchTraceCallDetail', () => {
   })
 
   afterEach(() => {
-    setBaseUrl('http://127.0.0.1:3456')
+    setBaseUrl('http://127.0.0.1:10330')
     vi.restoreAllMocks()
   })
 
@@ -65,7 +65,7 @@ describe('fetchTraceCallDetail', () => {
     expect(first?.id).toBe('call-1')
     expect(second).toBe(first)
     expect(traceCallRequests(fetchMock)).toEqual([
-      'http://127.0.0.1:3456/api/sessions/session-1/trace/calls/call-1',
+      'http://127.0.0.1:10330/api/sessions/session-1/trace/calls/call-1',
     ])
   })
 

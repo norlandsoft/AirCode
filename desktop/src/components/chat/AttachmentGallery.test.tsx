@@ -318,7 +318,7 @@ describe('AttachmentGallery', () => {
     const image = view.getByRole('img', { name: '6代码仓库.png' })
     expect(image).toHaveAttribute(
       'src',
-      `http://127.0.0.1:3456/api/filesystem/file?path=${encodeURIComponent(path)}`,
+      `http://127.0.0.1:10330/api/filesystem/file?path=${encodeURIComponent(path)}`,
     )
     expect(view.container.querySelector('[data-file-extension]')).not.toBeInTheDocument()
   })

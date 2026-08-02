@@ -474,7 +474,7 @@ describe('updateStore', () => {
       const prepareInstall = vi.fn().mockResolvedValue(undefined)
       const cancelInstall = vi.fn().mockResolvedValue(undefined)
       const relaunchHost = vi.fn().mockResolvedValue(undefined)
-      const getServerUrl = vi.fn().mockResolvedValue('http://127.0.0.1:3456')
+      const getServerUrl = vi.fn().mockResolvedValue('http://127.0.0.1:10330')
 
       window.desktopHost = {
         ...browserHost,

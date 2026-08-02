@@ -392,17 +392,17 @@ describe('uiStore settings tab persistence', () => {
     expect(recreated.useUIStore.getState().activeSettingsTab).toBe('general')
   })
 
-  it('persists the pets Settings tab', async () => {
+  it('persists the skills Settings tab', async () => {
     const first = await import('./uiStore')
 
-    first.useUIStore.getState().setActiveSettingsTab('pets')
+    first.useUIStore.getState().setActiveSettingsTab('skills')
 
-    expect(window.localStorage.getItem('cc-haha-active-settings-tab')).toBe('pets')
+    expect(window.localStorage.getItem('cc-haha-active-settings-tab')).toBe('skills')
 
     vi.resetModules()
     const recreated = await import('./uiStore')
 
-    expect(recreated.useUIStore.getState().activeSettingsTab).toBe('pets')
+    expect(recreated.useUIStore.getState().activeSettingsTab).toBe('skills')
   })
 
   it('ignores an invalid persisted Settings tab', async () => {

@@ -32,7 +32,7 @@ describe('attachment image sources', () => {
       localImageFileUrl('C:\\Users\\Nanmi\\Desktop\\shot.png'),
     )
 
-    setBaseUrl('http://127.0.0.1:3456')
+    setBaseUrl('http://127.0.0.1:10330')
   })
 
   it('has no source for paths the endpoint cannot resolve or serve', () => {

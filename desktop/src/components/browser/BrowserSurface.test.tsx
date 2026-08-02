@@ -172,24 +172,24 @@ describe('BrowserSurface', () => {
 
   it('navigates the mounted native preview when another browser target opens for the same session', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
-    useBrowserPanelStore.getState().open('s1', 'http://127.0.0.1:3456/preview-fs/s1/first.md')
+    useBrowserPanelStore.getState().open('s1', 'http://127.0.0.1:10330/preview-fs/s1/first.md')
     render(<BrowserSurface sessionId="s1" />)
     await waitFor(() => {
       expect(bridge.open).toHaveBeenCalledWith(
-        'http://127.0.0.1:3456/preview-fs/s1/first.md',
+        'http://127.0.0.1:10330/preview-fs/s1/first.md',
         expect.objectContaining({ width: expect.any(Number) }),
       )
     })
 
     act(() => {
-      useBrowserPanelStore.getState().open('s1', 'http://127.0.0.1:3456/preview-fs/s1/second.md')
+      useBrowserPanelStore.getState().open('s1', 'http://127.0.0.1:10330/preview-fs/s1/second.md')
     })
 
     await waitFor(() => {
-      expect(bridge.navigate).toHaveBeenCalledWith('http://127.0.0.1:3456/preview-fs/s1/second.md')
+      expect(bridge.navigate).toHaveBeenCalledWith('http://127.0.0.1:10330/preview-fs/s1/second.md')
     })
     expect(useBrowserPanelStore.getState().bySession['s1']!.url).toBe(
-      'http://127.0.0.1:3456/preview-fs/s1/second.md',
+      'http://127.0.0.1:10330/preview-fs/s1/second.md',
     )
   })
 

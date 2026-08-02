@@ -71,8 +71,8 @@ const DATE_LOCALES: Record<Locale, string> = {
   kr: 'ko-KR',
 }
 const DEFAULT_PROFILE: DesktopProfilePreferences = {
-  displayName: 'cc-haha',
-  subtitle: 'github.com/NanmiCoder/cc-haha',
+  displayName: 'AirCode',
+  subtitle: 'AirCode Web 智能体工作台',
   avatarFile: null,
   avatarUpdatedAt: null,
 }

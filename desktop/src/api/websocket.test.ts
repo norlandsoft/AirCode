@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
-  baseUrl: 'http://127.0.0.1:3456',
+  baseUrl: 'http://127.0.0.1:10330',
   authToken: null as string | null,
 }))
 
@@ -65,7 +65,7 @@ describe('wsManager reconnect buffering', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    clientMocks.baseUrl = 'http://127.0.0.1:3456'
+    clientMocks.baseUrl = 'http://127.0.0.1:10330'
     clientMocks.authToken = null
     FakeWebSocket.instances = []
     globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket

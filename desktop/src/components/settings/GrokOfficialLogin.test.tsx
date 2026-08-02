@@ -14,7 +14,7 @@ vi.mock('../../api/hahaGrokOAuth', () => ({
     start: startMock,
     status: statusMock,
     logout: logoutMock,
-    successUrl: () => 'http://127.0.0.1:3456/api/haha-grok-oauth/success',
+    successUrl: () => 'http://127.0.0.1:10330/api/haha-grok-oauth/success',
   },
 }))
 
@@ -95,7 +95,7 @@ describe('GrokOfficialLogin', () => {
     })
 
     await waitFor(() => {
-      expect(open).toHaveBeenCalledWith('http://127.0.0.1:3456/api/haha-grok-oauth/success')
+      expect(open).toHaveBeenCalledWith('http://127.0.0.1:10330/api/haha-grok-oauth/success')
     })
   })
 })

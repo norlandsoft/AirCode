@@ -43,7 +43,7 @@ const PALETTE_CLASS = new RegExp(
  * the `warning` token pair, so it needed no `dark:` variants at all — the entry
  * is gone rather than reduced.
  *
- * `PetApp.tsx` used to sit here with 3, all in one `rose` error banner. It is
+ * Pet windows used to sit here with 3, all in one `rose` error banner. It is
  * now on the `error` token pair, so its `dark:` variant went away with it —
  * that variant only ever covered one of the three themes anyway.
  *

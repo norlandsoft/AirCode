@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 // getBaseUrl backs the absolute-path src (/api/filesystem/file).
 vi.mock('../../api/client', () => ({
-  getBaseUrl: () => 'http://127.0.0.1:3456',
+  getBaseUrl: () => 'http://127.0.0.1:10330',
 }))
 
 // getServerBaseUrl backs the relative-path src (/preview-fs/<sessionId>/...).
@@ -25,7 +25,7 @@ describe('InlineImageGallery', () => {
     const srcs = imgSrcs()
     expect(srcs).toHaveLength(1)
     expect(srcs[0]).toBe(
-      'http://127.0.0.1:3456/api/filesystem/file?path=' + encodeURIComponent('/Users/me/out/result.png'),
+      'http://127.0.0.1:10330/api/filesystem/file?path=' + encodeURIComponent('/Users/me/out/result.png'),
     )
   })
 
@@ -59,7 +59,7 @@ describe('InlineImageGallery', () => {
 
     const srcs = imgSrcs()
     expect(srcs).toEqual([
-      'http://127.0.0.1:3456/api/filesystem/file?path=' + encodeURIComponent('/Users/me/pics/photo.png'),
+      'http://127.0.0.1:10330/api/filesystem/file?path=' + encodeURIComponent('/Users/me/pics/photo.png'),
       'http://127.0.0.1:4321/preview-fs/s1/outputs/b/chart.png',
     ])
   })
@@ -98,7 +98,7 @@ describe('InlineImageGallery', () => {
     const srcs = imgSrcs()
     expect(srcs).toHaveLength(1)
     expect(srcs[0]).toBe(
-      'http://127.0.0.1:3456/api/filesystem/file?path=' + encodeURIComponent('/w/outputs/a/frame.png'),
+      'http://127.0.0.1:10330/api/filesystem/file?path=' + encodeURIComponent('/w/outputs/a/frame.png'),
     )
   })
 })

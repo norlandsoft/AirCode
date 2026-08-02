@@ -47,10 +47,10 @@ describe('useTranslation', () => {
     expect(translate('kr', 'session.timeMinutes', { n: 5 })).toBe('5분 전')
   })
 
-  it('localizes pet validation and agent failures in every registered locale', () => {
+  it('localizes skill and agent failures in every registered locale', () => {
     for (const locale of ['en', 'zh', 'zh-TW', 'jp', 'kr'] as const) {
-      expect(translate(locale, 'settings.pets.createError.imageDimensions')).not.toBe(
-        'settings.pets.createError.imageDimensions',
+      expect(translate(locale, 'settings.skills.title')).not.toBe(
+        'settings.skills.title',
       )
       expect(translate(locale, 'settings.agents.loadError')).not.toBe('settings.agents.loadError')
     }

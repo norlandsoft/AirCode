@@ -273,7 +273,7 @@ describe('MarkdownRenderer', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
-          '![loopback](http://127.0.0.1:3456/api/status)',
+          '![loopback](http://127.0.0.1:10330/api/status)',
           '![remote](https://attacker.example/track.png)',
           '<img alt="responsive" srcset="https://attacker.example/a.png 1x">',
         ].join('\n')}

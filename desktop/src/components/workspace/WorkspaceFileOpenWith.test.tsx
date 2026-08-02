@@ -142,7 +142,7 @@ describe('WorkspaceFileOpenWith', () => {
 
     expect(browserOpen).toHaveBeenCalledWith(
       's1',
-      'http://127.0.0.1:3456/preview-fs/s1/66estmutl_files/index.html',
+      'http://127.0.0.1:10330/preview-fs/s1/66estmutl_files/index.html',
     )
   })
 

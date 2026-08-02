@@ -71,7 +71,6 @@ import { DiagnosticsSettings } from './DiagnosticsSettings'
 import { TraceList } from './TraceList'
 import { ActivitySettings } from './ActivitySettings'
 import { MemorySettings } from './MemorySettings'
-import { PetSettings } from '../features/pets/PetSettings'
 import { useUIStore } from '../stores/uiStore'
 import { ClaudeOfficialLogin } from '../components/settings/ClaudeOfficialLogin'
 import { ChatGPTOfficialLogin } from '../components/settings/ChatGPTOfficialLogin'
@@ -263,7 +262,6 @@ export function Settings() {
             <TabButton icon="auto_awesome" label={t('settings.tab.skills')} active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
             <TabButton icon="history_edu" label={t('settings.tab.memory')} active={activeTab === 'memory'} onClick={() => setActiveTab('memory')} />
             <TabButton icon="extension" label={t('settings.tab.plugins')} active={activeTab === 'plugins'} onClick={() => setActiveTab('plugins')} />
-            <TabButton icon="pets" label={t('settings.tab.pets')} active={activeTab === 'pets'} onClick={() => setActiveTab('pets')} />
             <TabButton icon="mouse" label={t('settings.tab.computerUse')} active={activeTab === 'computerUse'} onClick={() => setActiveTab('computerUse')} />
             <TabButton icon="monitoring" label={t('settings.tab.activity')} active={activeTab === 'activity'} onClick={() => setActiveTab('activity')} />
             <TabButton icon="account_tree" label={t('settings.tab.trace')} active={activeTab === 'trace'} onClick={() => setActiveTab('trace')} />
@@ -286,7 +284,6 @@ export function Settings() {
           {activeTab === 'skills' && <SkillSettings />}
           {activeTab === 'memory' && <MemorySettings />}
           {activeTab === 'plugins' && <PluginSettings />}
-          {activeTab === 'pets' && <PetSettings />}
           {activeTab === 'computerUse' && <ComputerUseSettings />}
           {activeTab === 'trace' && <TraceList />}
           {activeTab === 'diagnostics' && <DiagnosticsSettings />}
@@ -4146,15 +4143,9 @@ function PluginSettings() {
 
 // ─── About Settings ──────────────────────────────────────
 
-const GITHUB_REPO = 'https://github.com/NanmiCoder/cc-haha'
+const GITHUB_REPO = 'https://github.com/norlandsoft/AirCode'
 const GITHUB_ISSUES = `${GITHUB_REPO}/issues`
 const GITHUB_RELEASES = `${GITHUB_REPO}/releases`
-const AUTHOR_GITHUB = 'https://github.com/NanmiCoder'
-const SOCIAL_LINKS = [
-  { name: 'Bilibili', icon: '/icons/bilibili.svg', url: 'https://space.bilibili.com/434377496', label: '程序员阿江-Relakkes' },
-  { name: 'Douyin', icon: '/icons/douyin.svg', url: 'https://www.douyin.com/user/MS4wLjABAAAATJPY7LAlaa5X-c8uNdWkvz0jUGgpw4eeXIwu_8BhvqE', label: '程序员阿江-Relakkes' },
-  { name: 'Xiaohongshu', icon: '/icons/xiaohongshu.svg', url: 'https://www.xiaohongshu.com/user/profile/5f58bd990000000001003753', label: '程序员阿江-Relakkes' },
-] as const
 
 function isValidHttpProxyUrl(value: string) {
   try {
@@ -4289,7 +4280,7 @@ function AboutSettings() {
     <div className="w-full min-w-0 max-w-2xl mx-auto flex flex-col items-center py-6">
       {/* Logo + App Name + Version */}
       <BrandSeal size="xl" className="mb-4" />
-      <h1 className="text-xl font-bold text-[var(--color-text-primary)]" style={{ fontFamily: 'var(--font-headline)' }}>Claude Code Haha</h1>
+      <h1 className="text-xl font-bold text-[var(--color-text-primary)]" style={{ fontFamily: 'var(--font-headline)' }}>AirCode</h1>
       {version && (
         <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-tertiary)]">
           <span>{t('settings.about.version')} {version}</span>
@@ -4308,7 +4299,7 @@ function AboutSettings() {
         >
           <img src={publicAssetPath('icons/github.svg')} alt="GitHub" className="w-5 h-5 opacity-70" />
           <div className="flex-1 text-left">
-            <div className="text-sm font-medium text-[var(--color-text-primary)]">NanmiCoder/cc-haha</div>
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">norlandsoft/AirCode</div>
             <div className="text-xs text-[var(--color-text-tertiary)]">{t('settings.about.starHint')}</div>
           </div>
         </button>
@@ -4505,34 +4496,11 @@ function AboutSettings() {
       {/* Divider */}
       <div className="w-full border-t border-[var(--color-border-separator)] my-6" />
 
-      {/* Author */}
+      {/* Acknowledgement */}
       <div className="w-full">
         <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">{t('settings.about.author')}</h3>
-        <button
-          onClick={() => openUrl(AUTHOR_GITHUB)}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[var(--radius-lg)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-        >
-          <img src={publicAssetPath('icons/github.svg')} alt="GitHub" className="w-4 h-4 opacity-60" />
-          <span className="text-sm text-[var(--color-text-primary)]">程序员阿江-Relakkes</span>
-          <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">GitHub</span>
-        </button>
-      </div>
-
-      {/* Social Media */}
-      <div className="w-full mt-4">
-        <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">{t('settings.about.socialMedia')}</h3>
-        <div className="flex flex-col gap-0.5">
-          {SOCIAL_LINKS.map((link) => (
-            <button
-              key={link.name}
-              onClick={() => openUrl(link.url)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[var(--radius-lg)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-            >
-              <img src={publicAssetPath(link.icon)} alt={link.name} className="w-4 h-4 opacity-60" />
-              <span className="text-sm text-[var(--color-text-primary)]">{link.label}</span>
-              <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">{link.name}</span>
-            </button>
-          ))}
+        <div className="w-full px-4 py-2.5 text-sm text-[var(--color-text-secondary)]">
+          AirCode 基于开源项目 cc-haha（作者 程序员阿江-Relakkes，MIT 许可）开发。
         </div>
       </div>
 

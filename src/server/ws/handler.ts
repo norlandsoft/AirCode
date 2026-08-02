@@ -59,10 +59,6 @@ import {
 } from '../../utils/commandMetadata.js'
 import { shouldCreateWorktreeForSessionLaunch } from '../services/repositoryLaunchService.js'
 import { getDisconnectGraceMs } from './disconnectGraceConfig.js'
-import {
-  isPetClientMessageAllowed,
-  toPetServerMessage,
-} from '../petAccessPolicy.js'
 
 const settingsService = new SettingsService()
 const providerService = new ProviderService()
@@ -186,7 +182,7 @@ export type SessionChatActivityState =
   | 'idle'
 
 /**
- * Pet/activity status deliberately reuses the authoritative WebSocket turn and
+ * Activity status deliberately reuses the authoritative WebSocket turn and
  * permission state above. Only failures and the legacy REST queue fallback
  * need their own memory; successful completion returns directly to idle.
  */
@@ -448,8 +444,7 @@ function hasActiveBackgroundTasks(sessionId: string): boolean {
 
 export function getSessionChatActivityState(sessionId: string): SessionChatActivityState {
   // An explicit stop wins over permission queues that the CLI has not emitted
-  // cancellation events for yet. Otherwise the stopped pet would remain stuck
-  // in waiting until that asynchronous cleanup arrived.
+  // cancellation events for yet.
   if (interruptedSessionChats.has(sessionId)) return 'idle'
   if (
     conversationService.getPendingPermissionRequests(sessionId).length > 0 ||
@@ -541,7 +536,6 @@ export type WebSocketData = {
   sessionId: string
   connectedAt: number
   channel: 'client' | 'sdk'
-  clientKind?: 'full' | 'pet'
   sdkToken: string | null
   serverPort: number
   serverHost: string
@@ -550,7 +544,6 @@ export type WebSocketData = {
 // Active WebSocket clients, grouped by session. Desktop, H5, and IM adapters can
 // legitimately watch the same running session at the same time.
 const activeSessions = new Map<string, Set<ServerWebSocket<WebSocketData>>>()
-let activePetClient: ServerWebSocket<WebSocketData> | null = null
 
 const clientOutputCallbacks = new Map<
   ServerWebSocket<WebSocketData>,
@@ -576,14 +569,6 @@ export const handleWebSocket = {
       conversationService.attachSdkConnection(sessionId, ws)
       console.log(`[WS] SDK connected for session: ${sessionId}`)
       return
-    }
-
-    if (ws.data.clientKind === 'pet') {
-      const previousPetClient = activePetClient
-      activePetClient = ws
-      if (previousPetClient && previousPetClient !== ws) {
-        previousPetClient.close(1000, 'Pet session switched')
-      }
     }
 
     console.log(`[WS] Client connected for session: ${sessionId}`)
@@ -638,15 +623,6 @@ export const handleWebSocket = {
       const message = JSON.parse(
         typeof rawMessage === 'string' ? rawMessage : rawMessage.toString()
       ) as ClientMessage
-
-      if (ws.data.clientKind === 'pet' && !isPetClientMessageAllowed(message)) {
-        sendError(
-          ws,
-          `Message type ${(message as { type?: unknown }).type ?? 'unknown'} is not available to the pet window`,
-          'PET_CAPABILITY_DENIED',
-        )
-        return
-      }
 
       switch (message.type) {
         case 'user_message': {
@@ -741,8 +717,6 @@ export const handleWebSocket = {
       conversationService.detachSdkConnection(sessionId, ws)
       return
     }
-
-    if (activePetClient === ws) activePetClient = null
 
     console.log(`[WS] Client disconnected from session: ${sessionId} (${code}: ${reason})`)
     if (!removeActiveClient(sessionId, ws)) {
@@ -3464,10 +3438,7 @@ function toStreamingFallbackServerMessage(cliMsg: any): ServerMessage {
 }
 
 function sendMessage(ws: ServerWebSocket<WebSocketData>, message: ServerMessage) {
-  const outgoing = ws.data.clientKind === 'pet'
-    ? toPetServerMessage(message)
-    : message
-  if (outgoing) ws.send(JSON.stringify(outgoing))
+  ws.send(JSON.stringify(message))
 }
 
 function sendError(ws: ServerWebSocket<WebSocketData>, message: string, code: string) {
@@ -4622,7 +4593,6 @@ export function closeSessionConnection(sessionId: string, reason = 'session clos
 
   activeSessions.delete(sessionId)
   for (const ws of clients) {
-    if (activePetClient === ws) activePetClient = null
     clientOutputCallbacks.delete(ws)
     ws.close(1000, reason)
   }
@@ -4641,7 +4611,6 @@ export function __resetWebSocketHandlerStateForTests(): void {
     for (const task of tasks.values()) clearAgentStopFinalizationRetry(task)
   }
   activeSessions.clear()
-  activePetClient = null
   clientOutputCallbacks.clear()
   taskNotificationPersistence.clear()
   sessionTranscriptEpochs.clear()

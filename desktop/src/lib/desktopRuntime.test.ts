@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
-  defaultBaseUrl: 'http://127.0.0.1:3456',
+  defaultBaseUrl: 'http://127.0.0.1:10330',
   explicitDefaultBaseUrl: false,
   setBaseUrl: vi.fn(),
   setAuthToken: vi.fn(),
@@ -40,7 +40,7 @@ describe('desktopRuntime browser H5 bootstrap', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    clientMocks.defaultBaseUrl = 'http://127.0.0.1:3456'
+    clientMocks.defaultBaseUrl = 'http://127.0.0.1:10330'
     clientMocks.explicitDefaultBaseUrl = false
     vi.useRealTimers()
     window.localStorage.clear()
@@ -63,7 +63,7 @@ describe('desktopRuntime browser H5 bootstrap', () => {
     expect(isLoopbackHostname('127.example.com')).toBe(false)
     expect(isLoopbackHostname('127.bad.0.1')).toBe(false)
     expect(requiresH5AuthForServerUrl('http://[::1]:3456')).toBe(false)
-    expect(requiresH5AuthForServerUrl('http://127.0.0.1:3456')).toBe(false)
+    expect(requiresH5AuthForServerUrl('http://127.0.0.1:10330')).toBe(false)
     expect(requiresH5AuthForServerUrl('http://127.0.1.1:3456')).toBe(false)
     expect(requiresH5AuthForServerUrl('http://127.example.com:3456')).toBe(true)
     expect(requiresH5AuthForServerUrl('http://localhost:3456')).toBe(false)
@@ -264,16 +264,16 @@ describe('desktopRuntime browser H5 bootstrap', () => {
       return Promise.resolve(healthOkResponse())
     }) as typeof fetch
 
-    const startup = expect(initializeDesktopServerUrl()).resolves.toBe('http://127.0.0.1:3456')
+    const startup = expect(initializeDesktopServerUrl()).resolves.toBe('http://127.0.0.1:10330')
     await vi.runAllTimersAsync()
 
     await startup
-    expect(clientMocks.setBaseUrl).toHaveBeenLastCalledWith('http://127.0.0.1:3456')
+    expect(clientMocks.setBaseUrl).toHaveBeenLastCalledWith('http://127.0.0.1:10330')
     expect(clientMocks.setAuthToken).toHaveBeenLastCalledWith(null)
     expect(globalThis.fetch).toHaveBeenCalledWith(`${window.location.origin}/health`, {
       cache: 'no-store',
     })
-    expect(globalThis.fetch).toHaveBeenCalledWith('http://127.0.0.1:3456/health', {
+    expect(globalThis.fetch).toHaveBeenCalledWith('http://127.0.0.1:10330/health', {
       cache: 'no-store',
     })
   })

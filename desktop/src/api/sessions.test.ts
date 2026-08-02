@@ -4,7 +4,7 @@ import { sessionsApi } from './sessions'
 
 describe('sessionsApi', () => {
   afterEach(() => {
-    setBaseUrl('http://127.0.0.1:3456')
+    setBaseUrl('http://127.0.0.1:10330')
     vi.restoreAllMocks()
   })
 
@@ -53,7 +53,7 @@ describe('sessionsApi', () => {
 
     expect(result.call.id).toBe('call-1')
     const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toBe('http://127.0.0.1:3456/api/sessions/session-1/trace/calls/call-1')
+    expect(url).toBe('http://127.0.0.1:10330/api/sessions/session-1/trace/calls/call-1')
     expect(init).toMatchObject({ method: 'GET' })
   })
 
@@ -73,7 +73,7 @@ describe('sessionsApi', () => {
     expect(result.activityState).toBe('waiting')
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toBe('http://127.0.0.1:3456/api/sessions/session-1/chat/status')
+    expect(url).toBe('http://127.0.0.1:10330/api/sessions/session-1/chat/status')
     expect(init).toMatchObject({ method: 'GET' })
   })
 
@@ -94,7 +94,7 @@ describe('sessionsApi', () => {
     expect(result.query).toBe('Mental Health Controller')
     expect(result.truncated).toBe(false)
     const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toBe('http://127.0.0.1:3456/api/sessions/session-1/workspace/search?query=Mental+Health+Controller')
+    expect(url).toBe('http://127.0.0.1:10330/api/sessions/session-1/workspace/search?query=Mental+Health+Controller')
     expect(init).toMatchObject({ method: 'GET' })
   })
 
