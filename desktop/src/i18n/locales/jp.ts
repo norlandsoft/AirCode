@@ -850,7 +850,7 @@ export const jp: Record<TranslationKey, string> = {
   'settings.adapters.streamingCard': 'ストリーミングカードモード',
   'settings.adapters.streamingCardDesc': 'より快適な体験のためにカードをリアルタイムで更新します',
   'settings.adapters.serverUrl': 'サーバー URL',
-  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:3456',
+  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:10330',
   'settings.adapters.save': '保存',
   'settings.adapters.saved': '保存しました',
   'settings.adapters.saving': '保存中...',

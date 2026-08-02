@@ -33,7 +33,7 @@ AirCode 是基于 **Claude Code 内核**（fork 自 cc-haha，MIT）的 Web 智�
 ## 常用命令
 
 ```bash
-./bin/aircode          # 构建（首次）+ 启动 Server（默认 127.0.0.1:3456）
+./bin/aircode          # 构建（首次）+ 启动 Server（默认 127.0.0.1:10330）
 bun run start          # 直接启动 Server
 bun run web:build      # 构建 Web UI（desktop/dist）
 bun run web:dev        # Web UI 开发模式

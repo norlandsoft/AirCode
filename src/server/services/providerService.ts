@@ -150,7 +150,7 @@ function appendNewProviderToOrder(providerOrder: string[], providerId: string, e
 }
 
 export class ProviderService {
-  private static serverPort = 3456
+  private static serverPort = 10330
   private managedSettingsService = new ManagedSettingsService()
 
   static setServerPort(port: number): void {

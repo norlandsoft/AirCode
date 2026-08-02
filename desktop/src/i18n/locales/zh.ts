@@ -849,7 +849,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.adapters.streamingCard': '流式卡片模式',
   'settings.adapters.streamingCardDesc': '实时更新消息内容，体验更好',
   'settings.adapters.serverUrl': '服务器地址',
-  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:3456',
+  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:10330',
   'settings.adapters.save': '保存',
   'settings.adapters.saved': '已保存',
   'settings.adapters.saving': '保存中...',

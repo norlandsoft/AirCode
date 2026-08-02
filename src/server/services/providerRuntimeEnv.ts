@@ -386,7 +386,7 @@ export function buildProviderManagedEnv(
   const apiFormat: ApiFormat = provider.apiFormat ?? 'anthropic'
   const needsProxy = apiFormat !== 'anthropic'
   const proxyPath = options?.proxyPath ?? '/proxy'
-  const serverPort = options?.serverPort ?? 3456
+  const serverPort = options?.serverPort ?? 10330
   const baseUrl = needsProxy
     ? `http://127.0.0.1:${serverPort}${proxyPath}`
     : provider.baseUrl

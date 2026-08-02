@@ -14,7 +14,7 @@ bun install
 ./bin/aircode
 ```
 
-打开 http://127.0.0.1:3456 ，在「设置 → 服务商」中配置模型（支持 Anthropic 官方、ChatGPT/Grok OAuth、DeepSeek、智谱 GLM、Kimi、MiniMax、LM Studio、Ollama 及任意 Anthropic/OpenAI 兼容网关）。
+打开 http://127.0.0.1:10330 ，在「设置 → 服务商」中配置模型（支持 Anthropic 官方、ChatGPT/Grok OAuth、DeepSeek、智谱 GLM、Kimi、MiniMax、LM Studio、Ollama 及任意 Anthropic/OpenAI 兼容网关）。
 
 ## 架构
 
@@ -34,7 +34,7 @@ Claude Code CLI 内核（src/entrypoints/cli.tsx）
 
 1. 以 `SERVER_HOST=0.0.0.0 ./bin/aircode` 启动（或置于反向代理后）。
 2. 本机浏览器打开「设置 → H5 访问」，开启并生成访问令牌，配置允许的 Origin。
-3. 远程设备浏览器访问 `http://<部署机IP>:3456`，输入令牌即可继续所有会话——锁屏、断网不影响正在运行的任务（服务端常驻 + 断连宽限期）。
+3. 远程设备浏览器访问 `http://<部署机IP>:10330`，输入令牌即可继续所有会话——锁屏、断网不影响正在运行的任务（服务端常驻 + 断连宽限期）。
 4. 公网部署请使用 HTTPS 反代，代理 `/api/*`、`/proxy/*`、`/ws/*`（开启 WebSocket Upgrade），保留 Host 与 `X-Forwarded-*` 头。
 
 ## 与 cc-haha 的差异
@@ -52,7 +52,7 @@ bun run web:dev               # Web UI 开发模式（vite）
 bun run web:build             # 重新构建 Web UI
 ```
 
-Server 选项：`--host` / `--port`（或 `SERVER_HOST` / `SERVER_PORT`，默认 127.0.0.1:3456）、`--auth-required`（强制鉴权）、`--cli-path`（指定 CLI）。
+Server 选项：`--host` / `--port`（或 `SERVER_HOST` / `SERVER_PORT`，默认 127.0.0.1:10330）、`--auth-required`（强制鉴权）、`--cli-path`（指定 CLI）。
 
 ## 目录
 

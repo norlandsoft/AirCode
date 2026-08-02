@@ -848,7 +848,7 @@ Row 9, all 8 cells: continuing from straight down, turning left through lower-le
   'settings.adapters.streamingCard': 'Streaming Card Mode',
   'settings.adapters.streamingCardDesc': 'Real-time card updates for better experience',
   'settings.adapters.serverUrl': 'Server URL',
-  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:3456',
+  'settings.adapters.serverUrlPlaceholder': 'ws://127.0.0.1:10330',
   'settings.adapters.save': 'Save',
   'settings.adapters.saved': 'Saved',
   'settings.adapters.saving': 'Saving...',
