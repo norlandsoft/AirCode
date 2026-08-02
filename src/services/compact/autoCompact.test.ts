@@ -1,0 +1,115 @@
+import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
+
+import { getAutoCompactThreshold, getEffectiveContextWindowSize } from './autoCompact.js'
+import { getContextWindowForModel } from '../../utils/context.js'
+import { MODEL_CONTEXT_WINDOWS_ENV_KEY } from '../../utils/model/modelContextWindows.js'
+
+let originalAutoCompactWindow: string | undefined
+let originalContextWindows: string | undefined
+
+beforeEach(() => {
+  originalAutoCompactWindow = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  originalContextWindows = process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY]
+  delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  delete process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY]
+})
+
+afterEach(() => {
+  if (originalAutoCompactWindow === undefined) {
+    delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  } else {
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = originalAutoCompactWindow
+  }
+  if (originalContextWindows === undefined) {
+    delete process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY]
+  } else {
+    process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY] = originalContextWindows
+  }
+})
+
+describe('model context window resolution', () => {
+  test('uses built-in windows for current third-party coding models', () => {
+    expect(getContextWindowForModel('deepseek-v4-pro')).toBe(1_000_000)
+    expect(getContextWindowForModel('MiniMax-M2.7')).toBe(204_800)
+    expect(getContextWindowForModel('k3')).toBe(262_144)
+    expect(getContextWindowForModel('k3[1m]')).toBe(1_000_000)
+    expect(getContextWindowForModel('kimi-k2.6')).toBe(262_144)
+    expect(getContextWindowForModel('zai-org/GLM-5.2')).toBe(1_000_000)
+    expect(getContextWindowForModel('glm-5.1')).toBe(200_000)
+    expect(getContextWindowForModel('glm-4.5-air')).toBe(128_000)
+  })
+
+  test('uses Codex OAuth effective context windows for OpenAI GPT models', () => {
+    expect(getContextWindowForModel('gpt-5.5')).toBe(258_400)
+    expect(getContextWindowForModel('gpt-5.4')).toBe(950_000)
+    expect(getContextWindowForModel('gpt-5.4-mini')).toBe(258_400)
+    expect(getContextWindowForModel('gpt-5.3-codex-spark')).toBe(121_600)
+  })
+
+  test('uses per-model provider overrides before built-in defaults', () => {
+    process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY] = JSON.stringify({
+      'deepseek-v4-pro': 500_000,
+      'custom-model': 300_000,
+    })
+
+    expect(getContextWindowForModel('deepseek-v4-pro')).toBe(500_000)
+    expect(getContextWindowForModel('provider/custom-model')).toBe(300_000)
+  })
+
+  test('global auto compact window can raise unknown models above the default', () => {
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '1000000'
+
+    expect(getEffectiveContextWindowSize('unknown-future-model')).toBe(980_000)
+  })
+
+  test('per-model configured window wins over the [1m] marker (#1162)', () => {
+    process.env[MODEL_CONTEXT_WINDOWS_ENV_KEY] = JSON.stringify({
+      k3: 262_144,
+    })
+
+    // The [1m] suffix gets appended automatically by provider settings; an
+    // explicitly configured window states the model's real limit and must win,
+    // otherwise auto-compact aims at 1M and the provider hard-caps first.
+    expect(getContextWindowForModel('k3[1m]')).toBe(262_144)
+    expect(getAutoCompactThreshold('k3[1m]')).toBe(229_144)
+  })
+
+  test('[1m] marker still wins over built-in table entries', () => {
+    // claude-sonnet-4-6 is 200K in the built-in table; [1m] is the official
+    // extended-context opt-in and must not be capped by that entry.
+    expect(getContextWindowForModel('claude-sonnet-4-6[1m]')).toBe(1_000_000)
+  })
+
+  test('global auto compact window can only lower models with a known window (#1162)', () => {
+    // k3 is 262,144 in the built-in table — a leftover 1M global override
+    // (e.g. from another provider preset) must not raise it past the
+    // provider's hard cap.
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '1000000'
+    expect(getEffectiveContextWindowSize('k3')).toBe(262_144 - 20_000)
+
+    // Lowering still works for known models.
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '100000'
+    expect(getEffectiveContextWindowSize('k3')).toBe(100_000 - 20_000)
+
+    // [1m]-marked models count as known and can only be lowered too.
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '500000'
+    expect(getEffectiveContextWindowSize('unknown-future-model[1m]')).toBe(
+      500_000 - 20_000,
+    )
+
+    // Codex-catalog models count as known: a leftover 1M must not raise them.
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = '1000000'
+    const withOverride = getEffectiveContextWindowSize('gpt-5.5')
+    delete process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+    expect(withOverride).toBe(getEffectiveContextWindowSize('gpt-5.5'))
+  })
+
+  test('derives auto-compact thresholds from provider context windows', () => {
+    expect(getAutoCompactThreshold('deepseek-v4-pro')).toBe(967_000)
+    expect(getAutoCompactThreshold('zai-org/GLM-5.2')).toBe(967_000)
+    expect(getAutoCompactThreshold('glm-5.1')).toBe(167_000)
+    expect(getAutoCompactThreshold('glm-4.5-air')).toBe(95_000)
+    expect(getAutoCompactThreshold('kimi-k2.6')).toBe(229_144)
+    expect(getAutoCompactThreshold('MiniMax-M2.7')).toBe(171_800)
+  })
+})
